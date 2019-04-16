@@ -67,9 +67,10 @@ plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
 plt.legend()
 #plt.show()
 plt.savefig("Voronoi_test.png")
+plt.close()
 
 # create df to save the initial voronoi cell informations
-column_list = ["vor_point","vor_region","s","b1","b2","error","significance"]
+column_list = ["vor_point","vor_region","s","b","error","significance"]
 df_vor =  pd.DataFrame(columns=column_list)
 for cell in range(1+(data["vor_region"].max())):
     if cell not in data["vor_region"].values: continue
@@ -82,8 +83,19 @@ for cell in range(1+(data["vor_region"].max())):
     err_b1 = data.ix[data.target.values==2]["error"].values[0]
     err_b2 = data.ix[data.target.values==3]["error"].values[0]
     err_sum_b , significance = tool.get_significance(nS, nB1, nB2, err_b1, err_b2, minimum_bkg)
-    a = [v_point,  v_region, nS, nB1,nB2,err_sum_b,significance]
+    nB = nB1 + nB2
+    a = [v_point,  v_region, nS, nB, err_sum_b,significance]
     df = pd.DataFrame([a],columns=column_list)
     df_vor = df_vor.append(df, ignore_index=True)
 
+# sort by significance
+df_vor.sort_values(by="significance", ascending=False, inplace=True)
+
 print(df_vor)
+
+# plot the original significance
+values1, bins, _ = plt.hist(df_vor["significance"].values, bins = 10, alpha =0.5, range=(0., 1.01*df_vor["significance"].values[0]) , density = True)
+plt.xlabel("Z")
+plt.ylabel("%")
+plt.savefig("Voronoi_significance.png")
+plt.close()
