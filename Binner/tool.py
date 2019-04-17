@@ -168,6 +168,9 @@ def get_significance(s, b1, b2, err_b1, err_b2, threshold):
     '''
     err_b1_b2 = eff_error(b1, b2, err_b1, err_b2, threshold)
     nB = max(b1+b2, threshold)
-    significance = RooStats.AsimovSignificance(s, nB, err_b1_b2)
+    significance = 0.
+    if s >= 0:
+        # please think and figure out a better way to treat negative weight 
+        significance = RooStats.AsimovSignificance(s, nB, err_b1_b2)
     return err_b1_b2, significance
 
