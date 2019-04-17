@@ -68,6 +68,7 @@ plt.ylabel("mvaOutput_2lss_ttbar")
 plt.plot(ttV_x,ttV_y,'r.', label='ttV')
 plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
 plt.legend()
+plt.title("initial voronoi diagrams")
 #plt.show()
 plt.savefig("Voronoi_test.png")
 plt.close()
@@ -91,6 +92,7 @@ plt.ylabel("mvaOutput_2lss_ttbar")
 plt.plot(ttV_x,ttV_y,'r.', label='ttV')
 plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
 plt.legend()
+plt.title("initial colored voronoi diagrams")
 
 #plt.show()
 plt.savefig("ColoredVoronoi_test.png")
@@ -128,6 +130,7 @@ print(df_vor["significance"].values)
 values1, bins, _ = plt.hist(df_vor["significance"].values, bins = 10, alpha =0.5, range=(0., 1.01*df_vor["significance"].values[0]) , density = True)
 plt.xlabel("Z")
 plt.ylabel("%")
+plt.title("Z distribution")
 plt.savefig("Voronoi_significance.png")
 plt.close()
 
@@ -190,7 +193,7 @@ final_labels=df_vor.vor_label.unique()
 colors = cm.rainbow(np.linspace(0,1,final_label_size))
 points_indices = np.arange(len(regions))
 for region, p in zip(regions, points_indices):
-    print p, region
+    #print p, region
     m_label = df_vor[df_vor["vor_point"]==p]["vor_label"].values[0]
     c = colors[m_label]
     polygon = vertices[region]
@@ -199,7 +202,7 @@ for region, p in zip(regions, points_indices):
 plt.plot(Points[:,0], Points[:,1], '.', label='ttH')
 plt.xlim(-1, 1)
 plt.ylim(-1, 1)
-
+plt.title("Final Voronoi Diagram")
 plt.xlabel("mvaOutput_2lss_ttV")
 plt.ylabel("mvaOutput_2lss_ttbar")
 plt.plot(ttV_x,ttV_y,'r.', label='ttV')
@@ -208,4 +211,17 @@ plt.legend()
 
 #plt.show()
 plt.savefig("ColoredVoronoi_Final.png")
+plt.close()
+
+# plot the evolving history
+evolve_x = np.arange(n_cells)
+y_totsig = df_vor["total_sig"].values
+y_lagsig = df_vor["lag_sig"].values
+plt.plot(evolve_x, y_lagsig, 'b.', label='lag')
+plt.plot(evolve_x, y_totsig, 'r.', label='tot')
+plt.xlabel("#cell")
+plt.ylabel("Z")
+plt.legend()
+plt.title("Z evolve history ")
+plt.savefig("evolve_history.png")
 plt.close()

@@ -96,7 +96,7 @@ def find_vor_region(bkg_points, vor):
     region_idx = Point_Region[point_idx]
     
     # print the neighbor point
-    print("neighbor point of {} is Point {}".format(bkg_points,Points[point_idx]))
+    #print("neighbor point of {} is Point {}".format(bkg_points,Points[point_idx]))
 
     return point_idx, region_idx
 
