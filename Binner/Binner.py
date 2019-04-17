@@ -140,8 +140,10 @@ b1_trail = 0
 b2_trail = 0
 Z_trail = 0
 n_cells = len(df_vor.index)
+# set cost function
+cost_fom = 1
 sum_Zsquare =  (df_vor["significance"]**2).sum()
-deltaZ = 0
+sum_deltaZ =0
 # save updated Z
 total_Z = np.zeros(n_cells)
 # save Z before updates
@@ -156,35 +158,39 @@ for index, row in df_vor.iterrows():
     b1 = row["b1"]
     b2 = row["b2"]
     Z = row["significance"]
-    #lag_Z_square = sum_Zsquare
-    lag_Z_square = deltaZ
+    lag_Z_square = sum_Zsquare
+    lag_delta_Z = sum_deltaZ
     err_sum_b , significance = tool.get_significance((s_trail+s), (b1_trail+b1), (b2_trail+b2), err_b1, err_b2, minimum_bkg)
-    #cost = (significance**2) - (Z**2+Z_trail**2)
     #print("s_trail:{}, b1_trail:{}, b2_trail:{}, s:{}, b1:{}, b2:{}, Cost:{}, Significance: {}, Sum_Zsqure: {}".format(s_trail, b1_trail, b2_trail, s, b1, b2, cost,(significance**2),(Z**2+Z_trail**2)))
-    cost = tool.cost_fun(significance, Z_trail, Z)
-    vor_cell[index] = vor_count 
+    cost = tool.cost_fun(significance, Z_trail, Z, cost_fom)
     if cost >= 0.:
-        # significance of merged bins > sqrt(Z_0^2 + Z_1^2)
         # merge the bins
-        #sum_Zsquare += cost
-        deltaZ += cost
+        sum_Zsquare += cost
+        sum_deltaZ += cost
         s_trail += s
         b1_trail += b1_trail
         b2_trail += b2_trail
         Z_trail = significance
         update_Z[index] = 1
-        lag_Z[index] = deltaZ
-        total_Z[index] = deltaZ
-        #lag_Z[index] = math.sqrt(lag_Z_square)
-        #total_Z[index] = math.sqrt(sum_Zsquare)
+        if cost_fom ==0:
+            lag_Z[index] = math.sqrt(lag_Z_square)
+            total_Z[index] = math.sqrt(sum_Zsquare)
+        else:
+            lag_Z[index] = sum_deltaZ
+            total_Z[index] = sum_deltaZ
     else:
         s_trail = s
         b1_trail = b1
         b2_trail = b2
         Z_trail = Z
-        lag_Z[index] = deltaZ
-        total_Z[index] = deltaZ
+        if cost_fom ==0:
+            lag_Z[index] = math.sqrt(lag_Z_square)
+            total_Z[index] = math.sqrt(sum_Zsquare)
+        else:
+            lag_Z[index] = sum_deltaZ
+            total_Z[index] = sum_deltaZ
         vor_count +=1
+    vor_cell[index] = vor_count 
 
 df_vor["total_sig"] = total_Z
 df_vor["lag_sig"] = lag_Z
@@ -226,7 +232,10 @@ y_lagsig = df_vor["lag_sig"].values
 plt.plot(evolve_x, y_lagsig, 'b.', label='lag')
 plt.plot(evolve_x, y_totsig, 'r.', label='tot')
 plt.xlabel("#cell")
-plt.ylabel("Z")
+if cost_fom==0:
+    plt.ylabel("Z")
+else:
+    plt.ylabel("deltaZ")
 plt.legend()
 plt.title("Z evolve history ")
 plt.savefig("evolve_history.png")

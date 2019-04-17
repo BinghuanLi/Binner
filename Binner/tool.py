@@ -58,7 +58,7 @@ def load_data_2017(inputPath,variables,criteria):
                 chunk_df['vor_point']=-1
                 # set weight to 1 
                 #chunk_df['totalWeight']=1
-                chunk_df['totalWeight']=chunk_arr['EventWeight']*1000
+                chunk_df['totalWeight']=chunk_arr['EventWeight']
                 chunk_df['error']=error
                 #print(chunk_df)
                 data=data.append(chunk_df, ignore_index=True)
@@ -178,17 +178,21 @@ def get_significance(s, b1, b2, err_b1, err_b2, threshold):
         significance = RooStats.AsimovSignificance(s, nB, err_b1_b2)
     return err_b1_b2, significance
 
-def cost_fun(z0, z1, z2):
+def cost_fun(z0, z1, z2, fom=0):
     '''
-        calculate cost by probability
+        calculate cost
+        fom 0 : cost =  (z0**2) - (z1*2+z2**2)
+        fom 1 : cost =  stats.norm.ppf(p_lead) -  stats.norm.ppf(p_trail)
     '''
-    #p_trail = stats.norm.cdf(z1)*stats.norm.cdf(z2)
-    #p_lead = stats.norm.cdf(z0)
-    #deltaZ = stats.norm.ppf(p_lead) -  stats.norm.ppf(p_trail) 
-    p_trail = 1-(1-stats.norm.cdf(z1))*(1-stats.norm.cdf(z2))
-    p_lead = stats.norm.cdf(z0)
-    deltaZ = z0 -  stats.norm.ppf(p_trail) 
-    print("z0,{},z1,{},z2,{},p_lead,{},p_trail,{},dZ,{}".format(z0,z1,z2,p_lead,p_trail,deltaZ))
+    deltaZ = 0
+    if fom==0:
+        deltaZ = (z0**2) - (z1**2+z2**2)
+    else:    
+        p_trail = 1-(1-stats.norm.cdf(z1))*(1-stats.norm.cdf(z2))
+        p_lead = stats.norm.cdf(z0)
+        if (p_trail > 0.99999 and p_lead > 0.99999) or z1==0 : deltaZ = 0
+        else: deltaZ = stats.norm.ppf(p_lead) -  stats.norm.ppf(p_trail) 
+        print("z0,{},z1,{},z2,{},p_lead,{},p_trail,{},dZ,{}".format(z0,z1,z2,p_lead,p_trail,deltaZ))
      
     return deltaZ
     
