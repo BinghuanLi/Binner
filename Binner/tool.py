@@ -42,7 +42,7 @@ def load_data_2017(inputPath,variables,criteria):
             print inputTree + " deosn't exists in " + inputPath+"/"+key+".root"
             continue
         if tree is not None :
-            try: chunk_arr = tree2array(tree=tree, selection=criteria, start=0, stop = 10)
+            try: chunk_arr = tree2array(tree=tree, selection=criteria, start=0, stop = 20)
             except : continue
             else :
                 chunk_df = pd.DataFrame(chunk_arr, columns=variables)
@@ -103,7 +103,9 @@ def find_vor_region(bkg_points, vor):
 def plot_vor_2d(points, vertices, regions, ridge_vertices, ridge_points ):
     ''' 
         the function to plot voronoi 
-        reference : https://docs.scipy.org/doc/scipy/reference/tutorial/spatial.html#qhulltutorial
+        reference : 
+            https://docs.scipy.org/doc/scipy/reference/tutorial/spatial.html#qhulltutorial
+            https://gist.github.com/pv/8036995
         input:
             points:
                 2D array
@@ -148,6 +150,7 @@ def plot_vor_2d(points, vertices, regions, ridge_vertices, ridge_points ):
             far_point = vertices[i] + np.sign(np.dot(midpoint - center, n)) * n * 100
             plt.plot([vertices[i,0], far_point[0]],
                      [vertices[i,1], far_point[1]], '--', color='orange', linewidth=2, alpha =0.6)
+    
     return plt
 
 def eff_error(a, b, err_a, err_b, threshold):

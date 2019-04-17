@@ -7,6 +7,8 @@ from tool import load_data_2017
 from scipy.spatial import Voronoi, voronoi_plot_2d
 from scipy.spatial import KDTree
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from colorized_voronoi import voronoi_finite_polygons_2d
 
 # set mimimum bkg for significance calculation
 minimum_bkg = 0.000001
@@ -60,15 +62,42 @@ data.loc[mask,"vor_point"]= point_idx
 print (data)
 
 # plot initial Voronoi diagrams
+'''
 plt = tool.plot_vor_2d(Points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points) 
 plt.xlabel("mvaOutput_2lss_ttV")
 plt.ylabel("mvaOutput_2lss_ttbar")
 plt.plot(ttV_x,ttV_y,'r.', label='ttV')
 plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
 plt.legend()
-#plt.show()
+plt.show()
 plt.savefig("Voronoi_test.png")
 plt.close()
+'''
+
+# plot initial Voronoi diagrams with color
+regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
+
+
+# colorize
+colors = cm.rainbow(np.linspace(0,1,len(regions)))
+for region, c in zip(regions, colors):
+    polygon = vertices[region]
+    plt.fill(*zip(*polygon), alpha=0.4, color=c)
+
+plt.plot(Points[:,0], Points[:,1], '.', label='ttH')
+plt.xlim(-1, 1)
+plt.ylim(-1, 1)
+
+plt.xlabel("mvaOutput_2lss_ttV")
+plt.ylabel("mvaOutput_2lss_ttbar")
+plt.plot(ttV_x,ttV_y,'r.', label='ttV')
+plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
+plt.legend()
+
+#plt.show()
+plt.savefig("ColoredVoronoi_test.png")
+plt.close()
+
 
 # create df to save the initial voronoi cell informations
 err_b1 = data.ix[data.target.values==2]["error"].values[0]
