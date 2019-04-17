@@ -141,6 +141,7 @@ b2_trail = 0
 Z_trail = 0
 n_cells = len(df_vor.index)
 sum_Zsquare =  (df_vor["significance"]**2).sum()
+deltaZ = 0
 # save updated Z
 total_Z = np.zeros(n_cells)
 # save Z before updates
@@ -155,30 +156,35 @@ for index, row in df_vor.iterrows():
     b1 = row["b1"]
     b2 = row["b2"]
     Z = row["significance"]
-    lag_Z_square = sum_Zsquare
+    #lag_Z_square = sum_Zsquare
+    lag_Z_square = deltaZ
     err_sum_b , significance = tool.get_significance((s_trail+s), (b1_trail+b1), (b2_trail+b2), err_b1, err_b2, minimum_bkg)
-    cost = (significance**2) - (Z**2+Z_trail**2)
-    print("Cost:{}, Significance: {}, Sum_Zsqure: {}".format(cost,(significance**2),(Z**2+Z_trail**2)))
+    #cost = (significance**2) - (Z**2+Z_trail**2)
+    #print("s_trail:{}, b1_trail:{}, b2_trail:{}, s:{}, b1:{}, b2:{}, Cost:{}, Significance: {}, Sum_Zsqure: {}".format(s_trail, b1_trail, b2_trail, s, b1, b2, cost,(significance**2),(Z**2+Z_trail**2)))
+    cost = tool.cost_fun(significance, Z_trail, Z)
+    vor_cell[index] = vor_count 
     if cost >= 0.:
         # significance of merged bins > sqrt(Z_0^2 + Z_1^2)
         # merge the bins
-        sum_Zsquare += cost
+        #sum_Zsquare += cost
+        deltaZ += cost
         s_trail += s
         b1_trail += b1_trail
         b2_trail += b2_trail
         Z_trail = significance
         update_Z[index] = 1
-        lag_Z[index] = math.sqrt(lag_Z_square)
-        total_Z[index] = math.sqrt(sum_Zsquare)
+        lag_Z[index] = deltaZ
+        total_Z[index] = deltaZ
+        #lag_Z[index] = math.sqrt(lag_Z_square)
+        #total_Z[index] = math.sqrt(sum_Zsquare)
     else:
         s_trail = s
         b1_trail = b1
         b2_trail = b2
         Z_trail = Z
-        lag_Z[index] = math.sqrt(lag_Z_square)
-        total_Z[index] = math.sqrt(sum_Zsquare)
+        lag_Z[index] = deltaZ
+        total_Z[index] = deltaZ
         vor_count +=1
-    vor_cell[index] = vor_count 
 
 df_vor["total_sig"] = total_Z
 df_vor["lag_sig"] = lag_Z

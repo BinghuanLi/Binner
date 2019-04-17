@@ -9,6 +9,7 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 import matplotlib.pyplot as plt
 import math
 from ROOT import RooStats
+from scipy import stats
 
 #load_data_2017(inputPath, variables, False)  # select all jets
 def load_data_2017(inputPath,variables,criteria):
@@ -57,7 +58,7 @@ def load_data_2017(inputPath,variables,criteria):
                 chunk_df['vor_point']=-1
                 # set weight to 1 
                 #chunk_df['totalWeight']=1
-                chunk_df['totalWeight']=chunk_arr['EventWeight']
+                chunk_df['totalWeight']=chunk_arr['EventWeight']*1000
                 chunk_df['error']=error
                 #print(chunk_df)
                 data=data.append(chunk_df, ignore_index=True)
@@ -176,4 +177,20 @@ def get_significance(s, b1, b2, err_b1, err_b2, threshold):
         # please think and figure out a better way to treat negative weight 
         significance = RooStats.AsimovSignificance(s, nB, err_b1_b2)
     return err_b1_b2, significance
+
+def cost_fun(z0, z1, z2):
+    '''
+        calculate cost by probability
+    '''
+    #p_trail = stats.norm.cdf(z1)*stats.norm.cdf(z2)
+    #p_lead = stats.norm.cdf(z0)
+    #deltaZ = stats.norm.ppf(p_lead) -  stats.norm.ppf(p_trail) 
+    p_trail = 1-(1-stats.norm.cdf(z1))*(1-stats.norm.cdf(z2))
+    p_lead = stats.norm.cdf(z0)
+    deltaZ = z0 -  stats.norm.ppf(p_trail) 
+    print("z0,{},z1,{},z2,{},p_lead,{},p_trail,{},dZ,{}".format(z0,z1,z2,p_lead,p_trail,deltaZ))
+     
+    return deltaZ
+    
+    
 
