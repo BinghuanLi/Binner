@@ -43,7 +43,6 @@ def voronoi_finite_polygons_2d(vor_points, vor_vertices, vor_regions, vor_ridge_
     # Reconstruct infinite regions
     for p1, region in enumerate(vor_point_region):
         vertices = vor_regions[region]
-
         if all(v >= 0 for v in vertices):
             # finite region
             new_regions.append(vertices)
@@ -61,7 +60,6 @@ def voronoi_finite_polygons_2d(vor_points, vor_vertices, vor_regions, vor_ridge_
                 continue
 
             # Compute the missing endpoint of an infinite ridge
-
             t = vor_points[p2] - vor_points[p1] # tangent
             t /= np.linalg.norm(t)
             n = np.array([-t[1], t[0]])  # normal

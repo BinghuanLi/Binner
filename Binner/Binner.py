@@ -62,17 +62,15 @@ data.loc[mask,"vor_point"]= point_idx
 print (data)
 
 # plot initial Voronoi diagrams
-'''
 plt = tool.plot_vor_2d(Points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points) 
 plt.xlabel("mvaOutput_2lss_ttV")
 plt.ylabel("mvaOutput_2lss_ttbar")
 plt.plot(ttV_x,ttV_y,'r.', label='ttV')
 plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
 plt.legend()
-plt.show()
+#plt.show()
 plt.savefig("Voronoi_test.png")
 plt.close()
-'''
 
 # plot initial Voronoi diagrams with color
 regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
@@ -185,3 +183,29 @@ df_vor["update"] = update_Z
 df_vor["vor_label"] = vor_cell
 
 print(df_vor)
+
+# plot the merged voronoi
+final_label_size = df_vor["vor_label"].nunique()
+final_labels=df_vor.vor_label.unique()
+colors = cm.rainbow(np.linspace(0,1,final_label_size))
+points_indices = np.arange(len(regions))
+for region, p in zip(regions, points_indices):
+    print p, region
+    m_label = df_vor[df_vor["vor_point"]==p]["vor_label"].values[0]
+    c = colors[m_label]
+    polygon = vertices[region]
+    plt.fill(*zip(*polygon), alpha=0.4, color=c)
+
+plt.plot(Points[:,0], Points[:,1], '.', label='ttH')
+plt.xlim(-1, 1)
+plt.ylim(-1, 1)
+
+plt.xlabel("mvaOutput_2lss_ttV")
+plt.ylabel("mvaOutput_2lss_ttbar")
+plt.plot(ttV_x,ttV_y,'r.', label='ttV')
+plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
+plt.legend()
+
+#plt.show()
+plt.savefig("ColoredVoronoi_Final.png")
+plt.close()
