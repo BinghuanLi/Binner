@@ -43,7 +43,7 @@ def load_data_2017(inputPath,variables,criteria):
             print inputTree + " deosn't exists in " + inputPath+"/"+key+".root"
             continue
         if tree is not None :
-            try: chunk_arr = tree2array(tree=tree, selection=criteria, start=0, stop = 20)
+            try: chunk_arr = tree2array(tree=tree, selection=criteria, start=0, stop = 1000)
             except : continue
             else :
                 chunk_df = pd.DataFrame(chunk_arr, columns=variables)
@@ -154,19 +154,20 @@ def plot_vor_2d(points, vertices, regions, ridge_vertices, ridge_points ):
     
     return plt
 
-def eff_error(a, b, err_a, err_b, threshold):
+def eff_error(a, b, err_a, err_b, threshold, correlation=0):
     '''
-        effective error assuming 0 correlations 
+        effective error 
     '''
     if (b+a) < threshold:
         err = 0
     else:
-        err = (a*a*err_a*err_a + b*b*err_b*err_b)/(b+a)
+        err = math.sqrt((a*a*err_a*err_a + b*b*err_b*err_b + 2*correlation*a*b*err_a*err_b))/(b+a)
     return err
 
 def get_significance(s, b1, b2, err_b1, err_b2, threshold):
     '''
         asimov significance
+        https://root.cern.ch/doc/v614/RooStatsUtils_8cxx_source.html
         https://www.pp.rhul.ac.uk/~cowan/stat/medsig/medsigNote.pdf
         eq[10], eq[20]
     '''

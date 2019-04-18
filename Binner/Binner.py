@@ -141,7 +141,7 @@ b2_trail = 0
 Z_trail = 0
 n_cells = len(df_vor.index)
 # set cost function
-cost_fom = 1
+cost_fom = 0
 sum_Zsquare =  (df_vor["significance"]**2).sum()
 sum_deltaZ =0
 # save updated Z
@@ -211,12 +211,12 @@ for region, p in zip(regions, points_indices):
     polygon = vertices[region]
     plt.fill(*zip(*polygon), alpha=0.4, color=c)
 
-plt.plot(Points[:,0], Points[:,1], '.', label='ttH')
+#plt.plot(Points[:,0], Points[:,1], '.', label='ttH')
 plt.xlim(-1, 1)
 plt.ylim(-1, 1)
 plt.title("Final Voronoi Diagram")
-plt.xlabel("mvaOutput_2lss_ttV")
-plt.ylabel("mvaOutput_2lss_ttbar")
+#plt.xlabel("mvaOutput_2lss_ttV")
+#plt.ylabel("mvaOutput_2lss_ttbar")
 plt.plot(ttV_x,ttV_y,'r.', label='ttV')
 plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
 plt.legend()
