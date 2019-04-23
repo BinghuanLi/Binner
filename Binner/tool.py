@@ -11,10 +11,92 @@ import math
 from ROOT import RooStats
 from scipy import stats
 
+def pair_negative(df):
+    '''
+        pair non positive weighted events
+    '''
+    # sort by sum of two BDT values
+    df = df.ix[np.argsort(df.mvaOutput_2lss_ttV + df.mvaOutput_2lss_ttbar).values]
+    df.reset_index(drop=True, inplace = True)
+    #print (df)
+    # the indices of rows to be dropped
+    drop_indices = []
+    # get the indices of non positive weights
+    neg_indices = df.index[df['entries']<=0].tolist()
+    # get the looped indices of non positive weights
+    loop_indices = [] 
+    # loop forward
+    #print(neg_indices)
+    for i in neg_indices:
+        if i in drop_indices: continue
+        count = 1
+        while (count+i) <=  df.index.max() :
+            df.at[i,'entries'] = df.at[i,'entries']+df.at[count+i,'entries']
+            df.at[i,'totalWeight'] = df.at[i,'totalWeight']+ df.at[count+i,'totalWeight']
+            df.at[i,'mvaOutput_2lss_ttV'] = df.at[i,'mvaOutput_2lss_ttV']+ df.at[count+i,'mvaOutput_2lss_ttV']
+            df.at[i,'mvaOutput_2lss_ttbar'] = df.at[i,'mvaOutput_2lss_ttbar']+ df.at[count+i,'mvaOutput_2lss_ttbar']
+            drop_indices.append(count+i)
+            count +=1
+            if df.at[i,'entries'] > 0 and df.at[i,'totalWeight'] > 0:
+                df.at[i,'mvaOutput_2lss_ttV'] = df.at[i,'mvaOutput_2lss_ttV']/count 
+                df.at[i,'mvaOutput_2lss_ttbar'] = df.at[i,'mvaOutput_2lss_ttbar']/count 
+                loop_indices.append(i)
+                break
+    #print(drop_indices)
+    #print(neg_indices)
+    #print(loop_indices)
+    df.drop(drop_indices, inplace = True)
+    df.reset_index(drop=True, inplace = True)
+    
+    # loop backward
+    if len(neg_indices)> len(loop_indices):
+        print ( 'loop backward')
+        # the indices of rows to be dropped
+        drop_indices = []
+        # get the indices of non positive weights
+        neg_indices = df.index[df['entries']<=0].tolist()
+        # get the looped indices of non positive weights
+        loop_indices = [] 
+        print(neg_indices)
+        for i in neg_indices:
+            if i in drop_indices: continue
+            count = 1
+            while (i-count) >=  df.index.min():
+                df.at[i,'entries'] = df.at[i,'entries']+df.at[i-count,'entries']
+                df.at[i,'totalWeight'] = df.at[i,'totalWeight']+ df.at[i-count,'totalWeight']
+                df.at[i,'mvaOutput_2lss_ttV'] = df.at[i,'mvaOutput_2lss_ttV']+ df.at[i-count,'mvaOutput_2lss_ttV']
+                df.at[i,'mvaOutput_2lss_ttbar'] = df.at[i,'mvaOutput_2lss_ttbar']+ df.at[i-count,'mvaOutput_2lss_ttbar']
+                drop_indices.append(i-count)
+                count +=1
+                if df.at[i,'entries'] > 0 and df.at[i,'totalWeight'] > 0: 
+                    df.at[i,'mvaOutput_2lss_ttV'] = df.at[i,'mvaOutput_2lss_ttV']/count 
+                    df.at[i,'mvaOutput_2lss_ttbar'] = df.at[i,'mvaOutput_2lss_ttbar']/count 
+                    loop_indices.append(i)
+                    break
+        print(drop_indices)
+        print(neg_indices)
+        df.drop(drop_indices, inplace = True)
+        df.reset_index(drop=True, inplace = True)
+    
+    # drop the remaining neg_indices
+    if len(neg_indices)> len(loop_indices):
+        print( 'I have loop over forward and backward but neg_indices still exists: ')
+        # get the indices of non positive weights
+        neg_indices = df.index[df['entries']<=0].tolist()
+        df.drop(neg_indices, inplace = True)
+        df.reset_index(drop=True, inplace = True)
+        print(drop_indices)
+        print(neg_indices)
+    
+    
+    print (df)
+    return df
+
+
 #load_data_2017(inputPath, variables, False)  # select all jets
 def load_data_2017(inputPath,variables,criteria):
     print variables
-    my_cols_list=variables+['proces', 'key', 'target','totalWeight','error','vor_point','vor_region']
+    my_cols_list=variables+['proces', 'key', 'target','totalWeight','entries','error','vor_point','vor_region']
     data = pd.DataFrame(columns=my_cols_list)
     keys=['ttHnobb_SigRegion','ttWJets_SigRegion',"ttZJets_SigRegion","ttJets_SigRegion"]
     print keys
@@ -43,11 +125,13 @@ def load_data_2017(inputPath,variables,criteria):
             print inputTree + " deosn't exists in " + inputPath+"/"+key+".root"
             continue
         if tree is not None :
-            try: chunk_arr = tree2array(tree=tree, selection=criteria, start=0, stop = 1000)
+            try: chunk_arr = tree2array(tree=tree, selection=criteria)#start=0, stop = 30)
             except : continue
             else :
+                #print (chunk_arr)
                 chunk_df = pd.DataFrame(chunk_arr, columns=variables)
-                print (chunk_df.columns.tolist())
+                #print (chunk_df)
+                #print (chunk_df.columns.tolist())
                 #print( "sampleName "+ sampleName)
                 #print( "key "+ key)
                 #print( "target "+ str(target))
@@ -59,8 +143,10 @@ def load_data_2017(inputPath,variables,criteria):
                 # set weight to 1 
                 #chunk_df['totalWeight']=1
                 chunk_df['totalWeight']=chunk_arr['EventWeight']
+                chunk_df['entries']=np.sign(chunk_arr['EventWeight'])
                 chunk_df['error']=error
                 #print(chunk_df)
+                #chunk_df=pair_negative(chunk_df) 
                 data=data.append(chunk_df, ignore_index=True)
         tfile.Close()
         if len(data) == 0 : continue

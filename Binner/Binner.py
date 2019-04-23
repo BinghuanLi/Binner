@@ -16,8 +16,12 @@ minimum_bkg = 0.000001
 # load data
 inputPath = "../data/"
 variables = ["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]
-data=load_data_2017(inputPath, variables, "passGenMatchCut==1 && EventWeight>0") #FIXME drop negative MC weight at the moment
+data=load_data_2017(inputPath, variables, "passGenMatchCut==1") 
+print ( data)
 
+
+
+'''
 # load signal points to generate voronoi diagram
 sig_points_x = data.ix[(data.target.values==1)]["mvaOutput_2lss_ttV"]
 sig_points_y = data.ix[(data.target.values==1)]["mvaOutput_2lss_ttbar"]
@@ -72,7 +76,6 @@ plt.title("initial voronoi diagrams")
 #plt.show()
 plt.savefig("Voronoi_test.png")
 plt.close()
-
 # plot initial Voronoi diagrams with color
 regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
 
@@ -104,7 +107,9 @@ err_b1 = data.ix[data.target.values==2]["error"].values[0]
 err_b2 = data.ix[data.target.values==3]["error"].values[0]
 column_list = ["vor_point","vor_region","s","b1","b2","b1_err","b2_err","error","significance"]
 
+
 df_vor =  pd.DataFrame(columns=column_list)
+# this loop is too time consuming, please optimize it
 for cell in range(1+(data["vor_region"].max())):
     if cell not in data["vor_region"].values: continue
     v_point = data[(data["target"]==1) & (data["vor_region"]==cell)]["vor_point"].values[0]
@@ -217,8 +222,8 @@ plt.ylim(-1, 1)
 plt.title("Final Voronoi Diagram")
 #plt.xlabel("mvaOutput_2lss_ttV")
 #plt.ylabel("mvaOutput_2lss_ttbar")
-plt.plot(ttV_x,ttV_y,'r.', label='ttV')
-plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
+#plt.plot(ttV_x,ttV_y,'r.', label='ttV')
+#plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
 plt.legend()
 
 #plt.show()
@@ -240,3 +245,4 @@ plt.legend()
 plt.title("Z evolve history ")
 plt.savefig("evolve_history.png")
 plt.close()
+'''
