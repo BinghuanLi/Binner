@@ -16,7 +16,7 @@ minimum_bkg = 0.000001
 # load data
 inputPath = "../data/"
 variables = ["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]
-data=load_data_2017(inputPath, variables, "passGenMatchCut==1") 
+data=load_data_2017(inputPath, variables, "passGenMatchCut==1", 100) 
 print ( data)
 
 

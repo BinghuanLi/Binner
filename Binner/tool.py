@@ -11,14 +11,37 @@ import math
 from ROOT import RooStats
 from scipy import stats
 
-def pair_negative(df):
+def bin_events(df, variables, nEvt =-1):
+    '''
+        sort the events my the sum of two BDT values and then group every nEvt events
+        input : dataFrame, variables, nEvt
+        output : grouped dataFrame, isSorted
+    '''
+    if nEvt <=1:
+        return df, False
+    # sort by sum of two BDT values
+    df = df.ix[np.argsort(df.mvaOutput_2lss_ttV + df.mvaOutput_2lss_ttbar).values]
+    df.reset_index(drop=True, inplace = True)
+    #print(df)
+    my_list_column = variables + ['totalWeight','entries']
+    my_list_agg = ['mean']*len(variables)
+    my_dict = dict(zip(my_list_column,my_list_agg))
+    my_dict['totalWeight']='sum'
+    my_dict['entries']='sum'
+    #print(my_dict)
+    df = df.groupby(df.index / nEvt).agg(my_dict)
+
+    return df, True
+
+def pair_negative(df, isSorted=False):
     '''
         pair non positive weighted events
     '''
     # sort by sum of two BDT values
-    df = df.ix[np.argsort(df.mvaOutput_2lss_ttV + df.mvaOutput_2lss_ttbar).values]
-    df.reset_index(drop=True, inplace = True)
-    #print (df)
+    if not isSorted:
+        df = df.ix[np.argsort(df.mvaOutput_2lss_ttV + df.mvaOutput_2lss_ttbar).values]
+        df.reset_index(drop=True, inplace = True)
+    print (df)
     # the indices of rows to be dropped
     drop_indices = []
     # get the indices of non positive weights
@@ -94,7 +117,7 @@ def pair_negative(df):
 
 
 #load_data_2017(inputPath, variables, False)  # select all jets
-def load_data_2017(inputPath,variables,criteria):
+def load_data_2017(inputPath,variables,criteria, BinEvt = -1):
     print variables
     my_cols_list=variables+['proces', 'key', 'target','totalWeight','entries','error','vor_point','vor_region']
     data = pd.DataFrame(columns=my_cols_list)
@@ -125,11 +148,14 @@ def load_data_2017(inputPath,variables,criteria):
             print inputTree + " deosn't exists in " + inputPath+"/"+key+".root"
             continue
         if tree is not None :
-            try: chunk_arr = tree2array(tree=tree, selection=criteria)#start=0, stop = 30)
+            try: chunk_arr = tree2array(tree=tree, selection=criteria)# start=0, stop = 30)
             except : continue
             else :
                 #print (chunk_arr)
                 chunk_df = pd.DataFrame(chunk_arr, columns=variables)
+                chunk_df['totalWeight']=chunk_arr['EventWeight']
+                chunk_df['entries']=np.sign(chunk_arr['EventWeight'])
+                chunk_df, isSorted = bin_events(chunk_df, variables, BinEvt)
                 #print (chunk_df)
                 #print (chunk_df.columns.tolist())
                 #print( "sampleName "+ sampleName)
@@ -140,14 +166,11 @@ def load_data_2017(inputPath,variables,criteria):
                 chunk_df['target']=target
                 chunk_df['vor_region']=-1
                 chunk_df['vor_point']=-1
-                # set weight to 1 
-                #chunk_df['totalWeight']=1
-                chunk_df['totalWeight']=chunk_arr['EventWeight']
-                chunk_df['entries']=np.sign(chunk_arr['EventWeight'])
                 chunk_df['error']=error
-                #print(chunk_df)
-                #chunk_df=pair_negative(chunk_df) 
-                data=data.append(chunk_df, ignore_index=True)
+                chunk_df=pair_negative(chunk_df, isSorted) 
+                print(chunk_df)
+                print(data)
+                data=data.append(chunk_df, ignore_index=True, sort = True)
         tfile.Close()
         if len(data) == 0 : continue
         nS = len(data.ix[(data.target.values == 1) & (data.key.values==key) ])
