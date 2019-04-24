@@ -4,25 +4,33 @@ import ROOT
 import numpy as np
 import pandas as pd
 from root_numpy import root2array, tree2array 
-from scipy.spatial import KDTree
+from scipy.spatial import KDTree, cKDTree
 from scipy.spatial import Voronoi, voronoi_plot_2d
 import matplotlib.pyplot as plt
 import math
 from ROOT import RooStats
 from scipy import stats
 
-def bin_events(df, variables, nEvt =-1):
+def bin_events(df, variables, nCell =-1):
     '''
-        sort the events my the sum of two BDT values and then group every nEvt events
-        input : dataFrame, variables, nEvt
-        output : grouped dataFrame, isSorted
+        sort the events by distance and then group every nEvt events
+        input : dataFrame, variables, nCell
+        output : grouped dataFrame 
     '''
-    if nEvt <=1:
-        return df, False
-    # sort by sum of two BDT values
-    df = df.ix[np.argsort(df.mvaOutput_2lss_ttV + df.mvaOutput_2lss_ttbar).values]
+    if nCell <=0:
+        return df
+    # get the distance to fuse the points
+    dist = math.sqrt(4./nCell)
+    # reset df index
     df.reset_index(drop=True, inplace = True)
+    # get points 
+    points = np.vstack((df["mvaOutput_2lss_ttV"],df["mvaOutput_2lss_ttbar"])).T
+    # pair the points
+    tree = cKDTree(points)
+    rows_to_fuse = tree.query_pairs(r=dist)
+    print(repr(rows_to_fuse))
     #print(df)
+    '''
     my_list_column = variables + ['totalWeight','entries']
     my_list_agg = ['mean']*len(variables)
     my_dict = dict(zip(my_list_column,my_list_agg))
@@ -30,17 +38,55 @@ def bin_events(df, variables, nEvt =-1):
     my_dict['entries']='sum'
     #print(my_dict)
     df = df.groupby(df.index / nEvt).agg(my_dict)
-
-    return df, True
-
-def pair_negative(df, isSorted=False):
     '''
-        pair non positive weighted events
+    return df
+
+def pair_negative_distance(df):
+    '''
+        pair non positive weighted events to closest point 
+    '''
+    step = math.sqrt(1./(len(df.index)+1))
+    print(df)
+    print(step)
+    # get the indices of non positive weights
+    neg_indices = df.index[df['entries']<=0].tolist()
+    print(neg_indices)
+    # the indices of rows to be dropped
+    drop_indices = []
+    # get points 
+    Points = np.vstack((df["mvaOutput_2lss_ttV"],df["mvaOutput_2lss_ttbar"])).T
+    for i in neg_indices:
+        if i in drop_indices:continue
+        tree = KDTree(Points)
+        coordinate = [df.at[i,'mvaOutput_2lss_ttV'],df.at[i,'mvaOutput_2lss_ttbar']]
+        dist=0
+        while dist < 10*step and (df.at[i,'entries'] <=0 or df.at[i,'totalWeight'] <=0):
+            dist += step
+            point_idx = tree.query_ball_point(coordinate,dist)
+            print (point_idx)
+            if df.loc[point_idx,'entries'].sum() >0 and df.loc[point_idx,'totalWeight'].sum() >0:
+                df.at[i,'totalWeight'] = df.loc[point_idx,'totalWeight'].sum()
+                df.at[i,'entries'] = df.loc[point_idx,'entries'].sum()
+                df.at[i,'mvaOutput_2lss_ttV'] = df.loc[point_idx,'mvaOutput_2lss_ttV'].mean()
+                df.at[i,'mvaOutput_2lss_ttbar'] = df.loc[point_idx,'mvaOutput_2lss_ttbar'].mean()
+                drop_indices = point_idx
+                drop_indices.remove(i)
+    
+    df.drop(drop_indices, inplace = True)
+    df.reset_index(drop=True, inplace = True)
+    neg_indices = df.index[df['entries']<=0].tolist()
+    if (len(neg_indices)>0):
+        print("NOTICE: still have negative weighted points, please change the step and check the events ")
+    print(df)
+    return df
+
+def pair_negative(df):
+    '''
+        pair non positive weighted events to nearby points 
     '''
     # sort by sum of two BDT values
-    if not isSorted:
-        df = df.ix[np.argsort(df.mvaOutput_2lss_ttV + df.mvaOutput_2lss_ttbar).values]
-        df.reset_index(drop=True, inplace = True)
+    df = df.ix[np.argsort(df.mvaOutput_2lss_ttV + df.mvaOutput_2lss_ttbar).values]
+    df.reset_index(drop=True, inplace = True)
     print (df)
     # the indices of rows to be dropped
     drop_indices = []
@@ -117,7 +163,7 @@ def pair_negative(df, isSorted=False):
 
 
 #load_data_2017(inputPath, variables, False)  # select all jets
-def load_data_2017(inputPath,variables,criteria, BinEvt = -1):
+def load_data_2017(inputPath,variables,criteria, nBin = -1):
     print variables
     my_cols_list=variables+['proces', 'key', 'target','totalWeight','entries','error','vor_point','vor_region']
     data = pd.DataFrame(columns=my_cols_list)
@@ -148,14 +194,16 @@ def load_data_2017(inputPath,variables,criteria, BinEvt = -1):
             print inputTree + " deosn't exists in " + inputPath+"/"+key+".root"
             continue
         if tree is not None :
-            try: chunk_arr = tree2array(tree=tree, selection=criteria)# start=0, stop = 30)
+            try: chunk_arr = tree2array(tree=tree, selection=criteria, start=0, stop = 100)
             except : continue
             else :
                 #print (chunk_arr)
                 chunk_df = pd.DataFrame(chunk_arr, columns=variables)
                 chunk_df['totalWeight']=chunk_arr['EventWeight']
                 chunk_df['entries']=np.sign(chunk_arr['EventWeight'])
-                chunk_df, isSorted = bin_events(chunk_df, variables, BinEvt)
+                #chunk_df=pair_negative(chunk_df) 
+                chunk_df=pair_negative_distance(chunk_df) 
+                #chunk_df= bin_events(chunk_df, variables, nBin)
                 #print (chunk_df)
                 #print (chunk_df.columns.tolist())
                 #print( "sampleName "+ sampleName)
@@ -167,7 +215,6 @@ def load_data_2017(inputPath,variables,criteria, BinEvt = -1):
                 chunk_df['vor_region']=-1
                 chunk_df['vor_point']=-1
                 chunk_df['error']=error
-                chunk_df=pair_negative(chunk_df, isSorted) 
                 print(chunk_df)
                 print(data)
                 data=data.append(chunk_df, ignore_index=True, sort = True)

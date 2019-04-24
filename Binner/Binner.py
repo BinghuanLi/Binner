@@ -16,12 +16,10 @@ minimum_bkg = 0.000001
 # load data
 inputPath = "../data/"
 variables = ["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]
-data=load_data_2017(inputPath, variables, "passGenMatchCut==1", 100) 
+data=load_data_2017(inputPath, variables, "passGenMatchCut==1", -1) 
 print ( data)
 
 
-
-'''
 # load signal points to generate voronoi diagram
 sig_points_x = data.ix[(data.target.values==1)]["mvaOutput_2lss_ttV"]
 sig_points_y = data.ix[(data.target.values==1)]["mvaOutput_2lss_ttbar"]
@@ -245,4 +243,3 @@ plt.legend()
 plt.title("Z evolve history ")
 plt.savefig("evolve_history.png")
 plt.close()
-'''
