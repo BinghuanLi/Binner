@@ -44,8 +44,9 @@ def bin_events(df, variables, nCell =-1):
 def pair_negative_distance(df):
     '''
         pair non positive weighted events to closest point 
+        super slow
     '''
-    step = math.sqrt(1./(len(df.index)+1))
+    step = math.sqrt(2./(len(df.index)+1))
     print(df)
     print(step)
     # get the indices of non positive weights
@@ -56,21 +57,24 @@ def pair_negative_distance(df):
     # get points 
     Points = np.vstack((df["mvaOutput_2lss_ttV"],df["mvaOutput_2lss_ttbar"])).T
     for i in neg_indices:
-        if i in drop_indices:continue
+        print (i)
+        #print( 'dropped indices')
+        #print( drop_indices)
+        if i in drop_indices: continue
         tree = KDTree(Points)
         coordinate = [df.at[i,'mvaOutput_2lss_ttV'],df.at[i,'mvaOutput_2lss_ttbar']]
         dist=0
         while dist < 10*step and (df.at[i,'entries'] <=0 or df.at[i,'totalWeight'] <=0):
             dist += step
             point_idx = tree.query_ball_point(coordinate,dist)
-            print (point_idx)
+            #print (point_idx)
             if df.loc[point_idx,'entries'].sum() >0 and df.loc[point_idx,'totalWeight'].sum() >0:
                 df.at[i,'totalWeight'] = df.loc[point_idx,'totalWeight'].sum()
                 df.at[i,'entries'] = df.loc[point_idx,'entries'].sum()
                 df.at[i,'mvaOutput_2lss_ttV'] = df.loc[point_idx,'mvaOutput_2lss_ttV'].mean()
                 df.at[i,'mvaOutput_2lss_ttbar'] = df.loc[point_idx,'mvaOutput_2lss_ttbar'].mean()
-                drop_indices = point_idx
-                drop_indices.remove(i)
+                point_idx.remove(i)
+                drop_indices += point_idx
     
     df.drop(drop_indices, inplace = True)
     df.reset_index(drop=True, inplace = True)
@@ -194,7 +198,7 @@ def load_data_2017(inputPath,variables,criteria, nBin = -1):
             print inputTree + " deosn't exists in " + inputPath+"/"+key+".root"
             continue
         if tree is not None :
-            try: chunk_arr = tree2array(tree=tree, selection=criteria, start=0, stop = 100)
+            try: chunk_arr = tree2array(tree=tree, selection=criteria)# start=0, stop = 100)
             except : continue
             else :
                 #print (chunk_arr)
