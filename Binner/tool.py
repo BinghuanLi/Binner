@@ -11,26 +11,18 @@ import math
 from ROOT import RooStats
 from scipy import stats
 
-def bin_events(df, variables, nCell =-1):
+def bin_events(df, variables, nEvt =-1):
     '''
         sort the events by distance and then group every nEvt events
         input : dataFrame, variables, nCell
         output : grouped dataFrame 
     '''
-    if nCell <=0:
+    if nEvt <=1:
         return df
-    # get the distance to fuse the points
-    dist = math.sqrt(4./nCell)
-    # reset df index
+    # sort by sum of two BDT values
+    df = df.ix[np.argsort(df.mvaOutput_2lss_ttV + df.mvaOutput_2lss_ttbar).values]
     df.reset_index(drop=True, inplace = True)
-    # get points 
-    points = np.vstack((df["mvaOutput_2lss_ttV"],df["mvaOutput_2lss_ttbar"])).T
-    # pair the points
-    tree = cKDTree(points)
-    rows_to_fuse = tree.query_pairs(r=dist)
-    print(repr(rows_to_fuse))
     #print(df)
-    '''
     my_list_column = variables + ['totalWeight','entries']
     my_list_agg = ['mean']*len(variables)
     my_dict = dict(zip(my_list_column,my_list_agg))
@@ -38,7 +30,6 @@ def bin_events(df, variables, nCell =-1):
     my_dict['entries']='sum'
     #print(my_dict)
     df = df.groupby(df.index / nEvt).agg(my_dict)
-    '''
     return df
 
 def pair_negative_distance(df):
@@ -167,7 +158,7 @@ def pair_negative(df):
 
 
 #load_data_2017(inputPath, variables, False)  # select all jets
-def load_data_2017(inputPath,variables,criteria, nBin = -1):
+def load_data_2017(inputPath,variables,criteria, skip=1, nEvt=-1, pair_negwgt = "Sort"):
     print variables
     my_cols_list=variables+['proces', 'key', 'target','totalWeight','entries','error','vor_point','vor_region']
     data = pd.DataFrame(columns=my_cols_list)
@@ -198,16 +189,21 @@ def load_data_2017(inputPath,variables,criteria, nBin = -1):
             print inputTree + " deosn't exists in " + inputPath+"/"+key+".root"
             continue
         if tree is not None :
-            try: chunk_arr = tree2array(tree=tree, selection=criteria)# start=0, stop = 100)
+            try:
+                chunk_arr = tree2array(tree=tree, selection=criteria, step=skip)
             except : continue
             else :
                 #print (chunk_arr)
                 chunk_df = pd.DataFrame(chunk_arr, columns=variables)
                 chunk_df['totalWeight']=chunk_arr['EventWeight']
                 chunk_df['entries']=np.sign(chunk_arr['EventWeight'])
-                #chunk_df=pair_negative(chunk_df) 
-                chunk_df=pair_negative_distance(chunk_df) 
-                #chunk_df= bin_events(chunk_df, variables, nBin)
+                if pair_negwgt == "Sort":
+                    chunk_df=pair_negative(chunk_df) 
+                elif pair_negwgt == "Dist":
+                    chunk_df=pair_negative_distance(chunk_df) 
+                else: 
+                    print ("WARNING negative weight is not paired ")
+                chunk_df= bin_events(chunk_df, variables, nEvt)
                 #print (chunk_df)
                 #print (chunk_df.columns.tolist())
                 #print( "sampleName "+ sampleName)
