@@ -14,15 +14,26 @@ from colorized_voronoi import voronoi_finite_polygons_2d
 # set mimimum bkg for significance calculation
 minimum_bkg = 0.000001
 negative_weight = "Sort" # Sort/Dist
-delta = 1000 # load event every delta instance, so the events loaded would be N/delta
+delta = 1 # load event every delta instance, so the events loaded would be N/delta
 group_events = -1 # group events so each initial cell contains group_events instance, the initial #cell = (N/delta)/group_events
 doPlot = True
+load_csv = True
 
 # load data
 inputPath = "../data/"
 variables = ["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]
-data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
-print ( data)
+if not load_csv:
+    data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
+    data.to_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
+else:
+    try: data = pd.read_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
+    except:
+        print( "{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv deosn't exist ".format(inputPath,negative_weight,delta,group_events))
+        print( "run load_data_2017 ")
+        data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
+        data.to_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
+
+print (data)
 
 # save log file
 #file_log = open(("Significance_Initial_PairNegWgt{}_Delta{}_GroupEvt{}.log".format(negative_weight,delta,group_events)),"w")
@@ -73,8 +84,9 @@ data.loc[mask,"vor_point"]= point_idx
 print ("finish assigning bkgs")
 print (data)
 
-if doPlot:
-# plot initial Voronoi diagrams
+if doPlot and len(Vor.regions) < 1000 :
+    # plot initial Voronoi diagrams only if vor.regions < 1000
+    print (" plot initial Voronoi diagrams ")
     plt = tool.plot_vor_2d(Points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points) 
     plt.xlabel("mvaOutput_2lss_ttV")
     plt.ylabel("mvaOutput_2lss_ttbar")
@@ -89,25 +101,37 @@ if doPlot:
 # create df to save the initial voronoi cell informations
 err_b1 = data.ix[data.target.values==2]["error"].values[0]
 err_b2 = data.ix[data.target.values==3]["error"].values[0]
-column_list = ["vor_point","vor_region","s","b1","b2","b1_err","b2_err","error","significance"]
 
-df_vor =  pd.DataFrame(columns=column_list)
-print ("into time consuming loop")
-# this loop is too time consuming, please optimize it
-for cell in range(1+(data["vor_region"].max())):
-    if cell not in data["vor_region"].values: continue
-    v_point = data[(data["target"]==1) & (data["vor_region"]==cell)]["vor_point"].values[0]
-    #print(v_point)
-    v_region = cell
-    nS = data[(data["target"]==1) & (data["vor_region"]==cell)]["totalWeight"].sum() 
-    nB1 = data[(data["target"]==2) & (data["vor_region"]==cell)]["totalWeight"].sum() 
-    nB2 = data[(data["target"]==3) & (data["vor_region"]==cell)]["totalWeight"].sum() 
-    err_sum_b , significance = tool.get_significance(nS, nB1, nB2, err_b1, err_b2, minimum_bkg)
-    nB = nB1 + nB2
-    a = [v_point,  v_region, nS, nB1, nB2, err_b1, err_b2, err_sum_b, significance]
-    df = pd.DataFrame([a],columns=column_list)
-    df_vor = df_vor.append(df, ignore_index=True)
-print ("out time consuming loop")
+#column_list = ["vor_point","vor_region","s","b1","b2","b1_err","b2_err","error","significance"]
+my_values = ["vor_point","totalWeight","error"]
+my_index = ["vor_region","target"]
+#print(df)
+my_list_column = my_values 
+my_list_agg = ['mean']*len(my_list_column)
+my_dict = dict(zip(my_list_column,my_list_agg))
+my_dict['totalWeight']='sum'
+data_table = data.pivot_table(values=my_values, index=my_index, aggfunc = my_dict )
+data_table = data_table.unstack('target', fill_value=0).stack(level=1)
+print data_table
+my_vor_region = data_table.index.get_level_values(0)[data_table.index.get_level_values(1)==1].values
+print (my_vor_region)
+my_vor_point = data_table.loc[data_table.index.get_level_values(1)==1]["vor_point"].values
+print (my_vor_point)
+my_s = data_table.loc[data_table.index.get_level_values(1)==1]["totalWeight"].values
+my_b1 = data_table.loc[data_table.index.get_level_values(1)==2]["totalWeight"].values
+my_b2 = data_table.loc[data_table.index.get_level_values(1)==3]["totalWeight"].values
+my_err_sum_b = np.zeros(len(my_vor_region))
+my_significance = np.zeros(len(my_vor_region))
+print(my_err_sum_b)
+print ("calculate significance")
+vfunc = np.vectorize(tool.get_significance)
+my_err_sum_b, my_significance = vfunc(my_s, my_b1, my_b2, err_b1, err_b2, minimum_bkg)
+
+print ("finish calculate significance")
+
+df_vor =  pd.DataFrame({"vor_point":my_vor_point,"vor_region":my_vor_region,"s":my_s,"b1":my_b1,"b2":my_b2,"error":my_err_sum_b,"significance":my_significance})
+
+print(df_vor)
 
 # sort by significance
 df_vor.sort_values(by="significance", ascending=False, inplace=True)
@@ -118,6 +142,7 @@ print(df_vor["significance"].values)
 
 if doPlot:
     # plot the original significance
+    print (" plot original significance ")
     values1, bins, _ = plt.hist(df_vor["significance"].values, bins = 10, alpha =0.5, range=(0., 1.01*df_vor["significance"].values[0]) , density = True)
     plt.xlabel("Z")
     plt.ylabel("%")
@@ -191,8 +216,9 @@ df_vor["vor_label"] = vor_cell
 df_vor.to_csv("PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(negative_weight,delta,group_events))
 print(df_vor)
 
-if doPlot:
+if doPlot and len(Vor.regions) < 1000 :
     # plot merged Voronoi diagrams with color
+    print (" plot final merged Voronoi diagrams ")
     regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
 
     final_label_size = df_vor["vor_label"].nunique()
@@ -220,25 +246,28 @@ if doPlot:
     plt.savefig("ColoredVoronoi_Final_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
     plt.close()
 
+if doPlot: 
     # plot the evolving history
+    print (" plot the evolving history ")
+    my_slice = int(math.ceil(n_cells/100.))
     evolve_x = np.arange(n_cells)
     y_totsig = df_vor["total_sig"].values
     y_lagsig = df_vor["lag_sig"].values
     y_deltasig = 100.*(y_totsig - y_lagsig)/y_lagsig
+    y_max = np.max(y_deltasig)
     gs = gridspec.GridSpec(2,1, height_ratios=[4,1])
     ax1 = plt.subplot(gs[0])
     ax2 = plt.subplot(gs[1])
-    ax1.plot(evolve_x, y_lagsig, 'b.', label='lag')
-    ax1.plot(evolve_x, y_totsig, 'r.', label='tot')
+    ax1.plot(evolve_x[::my_slice], y_lagsig[::my_slice], 'b.', label='lag')
+    ax1.plot(evolve_x[::my_slice], y_totsig[::my_slice], 'r.', label='tot')
     ax1.grid(True)
     ax1.set(ylabel="Z")
     ax1.set_title("Z evolve history")
     ax1.legend()
-    ax2.set_ylim(-1,4)
     ax2.grid(True)
     ax2.set(ylabel=r'$\frac{tot-lag}{lag}$%')
-    ax2.plot(evolve_x,y_deltasig, 'k.')
+    ax2.plot(evolve_x[::my_slice],y_deltasig[::my_slice], 'k.')
     ax2.set(xlabel="#cell")
+    ax2.set_ylim(-0.1*y_max,1.1*y_max)
     plt.savefig("Z_evolve_history_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
     plt.clf()
-
