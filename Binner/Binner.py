@@ -16,6 +16,7 @@ minimum_bkg = 0.000001
 negative_weight = "Sort" # Sort/Dist
 delta = 1000 # load event every delta instance, so the events loaded would be N/delta
 group_events = -1 # group events so each initial cell contains group_events instance, the initial #cell = (N/delta)/group_events
+doPlot = True
 
 # load data
 inputPath = "../data/"
@@ -72,49 +73,23 @@ data.loc[mask,"vor_point"]= point_idx
 print ("finish assigning bkgs")
 print (data)
 
+if doPlot:
 # plot initial Voronoi diagrams
-plt = tool.plot_vor_2d(Points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points) 
-plt.xlabel("mvaOutput_2lss_ttV")
-plt.ylabel("mvaOutput_2lss_ttbar")
-plt.plot(ttV_x,ttV_y,'r.', label='ttV')
-plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
-plt.legend()
-plt.title("initial voronoi diagrams")
-#plt.show()
-plt.savefig("Voronoi_initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
-plt.close()
-# plot initial Voronoi diagrams with color
-regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
-
-
-
-# colorize
-colors = cm.rainbow(np.linspace(0,1,len(regions)))
-for region, c in zip(regions, colors):
-    polygon = vertices[region]
-    plt.fill(*zip(*polygon), alpha=0.4, color=c)
-
-plt.plot(Points[:,0], Points[:,1], '.', label='ttH')
-plt.xlim(-1, 1)
-plt.ylim(-1, 1)
-
-plt.xlabel("mvaOutput_2lss_ttV")
-plt.ylabel("mvaOutput_2lss_ttbar")
-plt.plot(ttV_x,ttV_y,'r.', label='ttV')
-plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
-plt.legend()
-plt.title("initial colored voronoi diagrams")
-
-#plt.show()
-plt.savefig("ColoredVoronoi_initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
-plt.close()
-
+    plt = tool.plot_vor_2d(Points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points) 
+    plt.xlabel("mvaOutput_2lss_ttV")
+    plt.ylabel("mvaOutput_2lss_ttbar")
+    plt.plot(ttV_x,ttV_y,'r.', label='ttV')
+    plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
+    plt.legend()
+    plt.title("initial voronoi diagrams")
+    #plt.show()
+    plt.savefig("Voronoi_initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
+    plt.close()
 
 # create df to save the initial voronoi cell informations
 err_b1 = data.ix[data.target.values==2]["error"].values[0]
 err_b2 = data.ix[data.target.values==3]["error"].values[0]
 column_list = ["vor_point","vor_region","s","b1","b2","b1_err","b2_err","error","significance"]
-
 
 df_vor =  pd.DataFrame(columns=column_list)
 print ("into time consuming loop")
@@ -141,13 +116,14 @@ df_vor = df_vor.reset_index(drop=True)
 print(df_vor)
 print(df_vor["significance"].values)
 
-# plot the original significance
-values1, bins, _ = plt.hist(df_vor["significance"].values, bins = 10, alpha =0.5, range=(0., 1.01*df_vor["significance"].values[0]) , density = True)
-plt.xlabel("Z")
-plt.ylabel("%")
-plt.title("Z distribution")
-plt.savefig("Significance_Initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
-plt.close()
+if doPlot:
+    # plot the original significance
+    values1, bins, _ = plt.hist(df_vor["significance"].values, bins = 10, alpha =0.5, range=(0., 1.01*df_vor["significance"].values[0]) , density = True)
+    plt.xlabel("Z")
+    plt.ylabel("%")
+    plt.title("Z distribution")
+    plt.savefig("Significance_Initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
+    plt.close()
 
 # bin merge algorithm
 s_trail =0
@@ -215,51 +191,54 @@ df_vor["vor_label"] = vor_cell
 df_vor.to_csv("PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(negative_weight,delta,group_events))
 print(df_vor)
 
-# plot the merged voronoi
-final_label_size = df_vor["vor_label"].nunique()
-final_labels=df_vor.vor_label.unique()
-colors = cm.rainbow(np.linspace(0,1,final_label_size))
-points_indices = np.arange(len(regions))
-for region, p in zip(regions, points_indices):
-    #print p, region
-    m_label = df_vor[df_vor["vor_point"]==p]["vor_label"].values[0]
-    c = colors[m_label]
-    polygon = vertices[region]
-    plt.fill(*zip(*polygon), alpha=0.4, color=c)
+if doPlot:
+    # plot merged Voronoi diagrams with color
+    regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
 
-#plt.plot(Points[:,0], Points[:,1], '.', label='ttH')
-plt.xlim(-1, 1)
-plt.ylim(-1, 1)
-plt.title("Final Voronoi Diagram")
-#plt.xlabel("mvaOutput_2lss_ttV")
-#plt.ylabel("mvaOutput_2lss_ttbar")
-#plt.plot(ttV_x,ttV_y,'r.', label='ttV')
-#plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
-plt.legend()
+    final_label_size = df_vor["vor_label"].nunique()
+    final_labels=df_vor.vor_label.unique()
+    colors = cm.rainbow(np.linspace(0,1,final_label_size))
+    points_indices = np.arange(len(regions))
+    for region, p in zip(regions, points_indices):
+        #print p, region
+        m_label = df_vor[df_vor["vor_point"]==p]["vor_label"].values[0]
+        c = colors[m_label]
+        polygon = vertices[region]
+        plt.fill(*zip(*polygon), alpha=0.4, color=c)
 
-#plt.show()
-plt.savefig("ColoredVoronoi_Final_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
-plt.close()
+    #plt.plot(Points[:,0], Points[:,1], '.', label='ttH')
+    plt.xlim(-1, 1)
+    plt.ylim(-1, 1)
+    plt.title("Final Voronoi Diagram")
+    plt.xlabel("mvaOutput_2lss_ttV")
+    plt.ylabel("mvaOutput_2lss_ttbar")
+    #plt.plot(ttV_x,ttV_y,'r.', label='ttV')
+    #plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
+    plt.legend()
 
-# plot the evolving history
-evolve_x = np.arange(n_cells)
-y_totsig = df_vor["total_sig"].values
-y_lagsig = df_vor["lag_sig"].values
-y_deltasig = 100.*(y_totsig - y_lagsig)/y_lagsig
-gs = gridspec.GridSpec(2,1, height_ratios=[4,1])
-ax1 = plt.subplot(gs[0])
-ax2 = plt.subplot(gs[1])
-ax1.plot(evolve_x, y_lagsig, 'b.', label='lag')
-ax1.plot(evolve_x, y_totsig, 'r.', label='tot')
-ax1.grid(True)
-ax1.set(ylabel="Z")
-ax1.set_title("Z evolve history")
-ax1.legend()
-ax2.set_ylim(-1,4)
-ax2.grid(True)
-ax2.set(ylabel=r'$\frac{tot-lag}{lag}$%')
-ax2.plot(evolve_x,y_deltasig, 'k.')
-ax2.set(xlabel="#cell")
-plt.savefig("Z_evolve_history_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
-plt.clf()
+    #plt.show()
+    plt.savefig("ColoredVoronoi_Final_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
+    plt.close()
+
+    # plot the evolving history
+    evolve_x = np.arange(n_cells)
+    y_totsig = df_vor["total_sig"].values
+    y_lagsig = df_vor["lag_sig"].values
+    y_deltasig = 100.*(y_totsig - y_lagsig)/y_lagsig
+    gs = gridspec.GridSpec(2,1, height_ratios=[4,1])
+    ax1 = plt.subplot(gs[0])
+    ax2 = plt.subplot(gs[1])
+    ax1.plot(evolve_x, y_lagsig, 'b.', label='lag')
+    ax1.plot(evolve_x, y_totsig, 'r.', label='tot')
+    ax1.grid(True)
+    ax1.set(ylabel="Z")
+    ax1.set_title("Z evolve history")
+    ax1.legend()
+    ax2.set_ylim(-1,4)
+    ax2.grid(True)
+    ax2.set(ylabel=r'$\frac{tot-lag}{lag}$%')
+    ax2.plot(evolve_x,y_deltasig, 'k.')
+    ax2.set(xlabel="#cell")
+    plt.savefig("Z_evolve_history_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
+    plt.clf()
 
