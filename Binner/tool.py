@@ -10,6 +10,11 @@ import matplotlib.pyplot as plt
 import math
 from ROOT import RooStats
 from scipy import stats
+from matplotlib.collections import PatchCollection
+from matplotlib.patches import Polygon
+from shapely import geometry
+import shapely
+import geopandas
 
 def bin_events(df, variables, nEvt =-1):
     '''
@@ -288,12 +293,14 @@ def plot_vor_2d(points, vertices, regions, ridge_vertices, ridge_points ):
     plt.xlim(-1, 1)
     plt.ylim(-1, 1)
 
+    print("finish plot voronoi seed cells")
     # plot the finite line segments
     for simplex in ridge_vertices:
         simplex = np.asarray(simplex)
         if np.all(simplex>=0):
             plt.plot(vertices[simplex, 0], vertices[simplex, 1], '-', color='orange', linewidth=2, alpha =0.6)
 
+    print("finish plot the finite line segments")
     # plot the infinity
     center = points.mean(axis=0)
     for pointidx, simplex in zip(ridge_points, ridge_vertices):
@@ -307,6 +314,7 @@ def plot_vor_2d(points, vertices, regions, ridge_vertices, ridge_points ):
             far_point = vertices[i] + np.sign(np.dot(midpoint - center, n)) * n * 100
             plt.plot([vertices[i,0], far_point[0]],
                      [vertices[i,1], far_point[1]], '--', color='orange', linewidth=2, alpha =0.6)
+    print("finish plot the infinite line segments")
     
     return plt
 
@@ -353,5 +361,22 @@ def cost_fun(z0, z1, z2, fom=0):
      
     return deltaZ
     
+def plot_polygon_collection(ax, geoms, values=None, colormap='gist_rainbow',  facecolor=None, edgecolor=None, alpha=0.5, linewidth=1.0, **kwargs):
+    """ Plot a collection of Polygon geometries """
+    patches = []
+    for poly in geoms:
+        a = np.asarray(poly.exterior)
+        if poly.has_z:
+            poly = shapely.geometry.Polygon(zip(*poly.exterior.xy))
+        patches.append(Polygon(a))
+    patches = PatchCollection(patches, facecolor=facecolor, linewidth=linewidth, edgecolor=edgecolor, alpha=alpha, **kwargs)
+
+    if values is not None:
+        patches.set_array(values)
+        patches.set_cmap(colormap)
+    ax.add_collection(patches, autolim=True)
+    ax.autoscale_view()
+    return patches
+
     
 

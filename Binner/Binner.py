@@ -10,14 +10,20 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib import gridspec
 from colorized_voronoi import voronoi_finite_polygons_2d
+from shapely import geometry
+import shapely
+import geopandas
+
 
 # set mimimum bkg for significance calculation
 minimum_bkg = 0.000001
 negative_weight = "Sort" # Sort/Dist
-delta = 1 # load event every delta instance, so the events loaded would be N/delta
+delta = 1000 # load event every delta instance, so the events loaded would be N/delta
 group_events = -1 # group events so each initial cell contains group_events instance, the initial #cell = (N/delta)/group_events
 doPlot = True
 load_csv = True
+err_b1 = 0.15 
+err_b2 = 0.25 
 
 # load data
 inputPath = "../data/"
@@ -85,22 +91,21 @@ print ("finish assigning bkgs")
 print (data)
 
 if doPlot and len(Vor.regions) < 1000 :
+#if doPlot:
     # plot initial Voronoi diagrams only if vor.regions < 1000
     print (" plot initial Voronoi diagrams ")
     plt = tool.plot_vor_2d(Points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points) 
-    plt.xlabel("mvaOutput_2lss_ttV")
-    plt.ylabel("mvaOutput_2lss_ttbar")
-    plt.plot(ttV_x,ttV_y,'r.', label='ttV')
-    plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
+    #plt.xlabel("mvaOutput_2lss_ttV")
+    #plt.ylabel("mvaOutput_2lss_ttbar")
+    #plt.plot(ttV_x,ttV_y,'r.', label='ttV')
+    #plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
     plt.legend()
     plt.title("initial voronoi diagrams")
     #plt.show()
     plt.savefig("Voronoi_initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
     plt.close()
 
-# create df to save the initial voronoi cell informations
-err_b1 = data.ix[data.target.values==2]["error"].values[0]
-err_b2 = data.ix[data.target.values==3]["error"].values[0]
+    print (" finish plot initial Voronoi diagrams ")
 
 #column_list = ["vor_point","vor_region","s","b1","b2","b1_err","b2_err","error","significance"]
 my_values = ["vor_point","totalWeight","error"]
@@ -216,13 +221,17 @@ df_vor["vor_label"] = vor_cell
 df_vor.to_csv("PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(negative_weight,delta,group_events))
 print(df_vor)
 
-if doPlot and len(Vor.regions) < 1000 :
+#if doPlot and len(Vor.regions) < 1000 :
+if doPlot :
     # plot merged Voronoi diagrams with color
     print (" plot final merged Voronoi diagrams ")
+    
     regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
 
     final_label_size = df_vor["vor_label"].nunique()
     final_labels=df_vor.vor_label.unique()
+    label_points = df_vor.groupby('vor_label')['vor_point'].apply(list).to_dict() 
+    '''
     colors = cm.rainbow(np.linspace(0,1,final_label_size))
     points_indices = np.arange(len(regions))
     for region, p in zip(regions, points_indices):
@@ -230,7 +239,26 @@ if doPlot and len(Vor.regions) < 1000 :
         m_label = df_vor[df_vor["vor_point"]==p]["vor_label"].values[0]
         c = colors[m_label]
         polygon = vertices[region]
+        #print polygon
         plt.fill(*zip(*polygon), alpha=0.4, color=c)
+    '''
+    cmap = cm.ScalarMappable(cmap='rainbow')
+    colors = cmap.to_rgba(final_labels)
+    fig, ax = plt.subplots()
+    print (" ready to loop over labels ")
+    for label, points in label_points.iteritems():
+        #print ("label: {}".format(label))
+        if label % 1000 ==0: print ("label: {}".format(label))
+        c = colors[label]
+        geoPolys = []
+        n_polygons = len(points)
+        for p in points:
+            polygon = vertices[regions[int(p)]] 
+            geoPoly =  geometry.Polygon(polygon)
+            geoPolys.append(geoPoly)
+        s = geopandas.GeoSeries(geoPolys) 
+        col = tool.plot_polygon_collection(ax, s.geometry, facecolor=c)
+    print (" finish plot loop over labels ")
 
     #plt.plot(Points[:,0], Points[:,1], '.', label='ttH')
     plt.xlim(-1, 1)
