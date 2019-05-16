@@ -13,8 +13,10 @@ from scipy import stats
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon
 from shapely import geometry
+from itertools import compress
 import shapely
 import geopandas
+from collections import deque
 
 def bin_events(df, variables, nEvt =-1):
     '''
@@ -378,5 +380,67 @@ def plot_polygon_collection(ax, geoms, values=None, colormap='gist_rainbow',  fa
     ax.autoscale_view()
     return patches
 
-    
+def count_ridges(x,y,z):
+    return y.count(x) >=2 or len(set(x) & set(z))>=2
 
+def my_list_count_ridges(x,y,z):            
+    bool_list = [(y.count(item)>=2 or len(set(item) & set(z)) >=2)  for item in x]
+    return all(bool_list)
+ 
+def save_vor_map(data, new_regions, new_vertices, label_points):
+    ''' 
+        save the vor_map as dataFrame
+        the idea is to:
+            1. for each vor_label, create a label_ridges collections of {label:[ridges]}
+            2. for each point in a given vor_label, if all the ridges within the plane of such point appears at least twice in the label_ridges collections, remove the point
+        input : 
+            data:
+                DataFrame, contains the x,y coordinates of points
+            new_regions:
+                list of list of indicices of vor_region vertices, index of list is the vor_point number
+            new_vertices:
+                2D array contains the coordinate of vertices
+            label_points:
+                dictionary of {label:[p1,p2,..., pN]}
+
+        output :
+            df_map:
+                DataFrame, contains minimum set of x,y,vor_label describing the voronoi map
+    '''
+    # create list save the index of vertices that is outside the 2D plane
+    infinite_vertices = np.where(abs(new_vertices)>1)[0]
+    
+    # create the ridge pairs
+    all_ridges = []
+    for region in new_regions:
+        old_region = region
+        region = deque(region) 
+        region.rotate(1)
+        region=list(region)
+        max_region = [ max(i,j) for i,j in zip(old_region,region) ]
+        min_region = [ min(i,j) for i,j in zip(old_region,region) ]
+        all_ridges.append([ list(a) for a in zip(max_region,min_region)])
+   
+    # loop over labels
+    all_labels = []
+    all_points = []
+    for label, points in label_points.iteritems():  
+        # create the label_ridge collection
+        ridges = [all_ridges[x] for x in points]
+        flat_ridges = [ item for sublist in ridges for item in sublist]
+        # create the list of bool flag, true means the points needs to be save
+        save_points= [ not my_list_count_ridges(ridge,flat_ridges,infinite_vertices) for ridge in ridges]
+        # the list of points needs to be saved for this label
+        my_points = list(compress(points,save_points))
+        all_points = all_points + my_points
+        all_labels = all_labels + [label] * len(my_points)
+
+    # now save it to the DataFrame
+    all_points_labels = dict(zip(all_points,all_labels))
+    data['vor_label'] = data['vor_point'].map(all_points_labels)
+    df_map = data.dropna(axis=0)
+  
+    df_na = data[data['vor_label'].isnull()]
+    print df_na[["vor_point","mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]]
+     
+    return df_map 

@@ -18,7 +18,7 @@ import geopandas
 # set mimimum bkg for significance calculation
 minimum_bkg = 0.000001
 negative_weight = "Sort" # Sort/Dist
-delta = 1000 # load event every delta instance, so the events loaded would be N/delta
+delta = 100 # load event every delta instance, so the events loaded would be N/delta
 group_events = -1 # group events so each initial cell contains group_events instance, the initial #cell = (N/delta)/group_events
 doPlot = True
 load_csv = True
@@ -27,6 +27,7 @@ err_b2 = 0.25
 
 # load data
 inputPath = "../data/"
+outputPath = "../output/"
 variables = ["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]
 if not load_csv:
     data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
@@ -218,19 +219,31 @@ df_vor["lag_sig"] = lag_Z
 df_vor["update"] = update_Z
 df_vor["vor_label"] = vor_cell
 
-df_vor.to_csv("PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(negative_weight,delta,group_events))
+df_vor.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(outputPath,negative_weight,delta,group_events))
 print(df_vor)
 
+# dictionary to save {label:[p1,p2,..., pN]}
+label_points = df_vor.groupby('vor_label')['vor_point'].apply(list).to_dict() 
+
+regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
+
+# save map
+df_map = tool.save_vor_map(data.ix[(data.target.values==1)], regions, vertices, label_points)
+df_map.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}_map.csv".format(outputPath,negative_weight,delta,group_events), columns=["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar","vor_point","vor_label"])
+    
 #if doPlot and len(Vor.regions) < 1000 :
 if doPlot :
     # plot merged Voronoi diagrams with color
     print (" plot final merged Voronoi diagrams ")
     
-    regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
+
+    print ("regions")
+    print (regions)
+    print ("vertices")
+    print (vertices)
 
     final_label_size = df_vor["vor_label"].nunique()
     final_labels=df_vor.vor_label.unique()
-    label_points = df_vor.groupby('vor_label')['vor_point'].apply(list).to_dict() 
     '''
     colors = cm.rainbow(np.linspace(0,1,final_label_size))
     points_indices = np.arange(len(regions))
