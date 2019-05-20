@@ -483,8 +483,9 @@ def apply_vor_map(data, vor_map):
     app_points = np.vstack((data["mvaOutput_2lss_ttV"],data["mvaOutput_2lss_ttbar"])).T
     # closest neighbor point index
     point_idx = tree.query(app_points)[1]
+    print ( point_idx )
     # vor label that closest neighbor point belongs to
-    labels = vor_map.ix[point_idx]["vor_label"].values
+    labels = vor_map.loc[point_idx]["vor_label"].values
     vor_data = data
     vor_data["vor_label"] = labels
 

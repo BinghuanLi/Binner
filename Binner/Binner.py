@@ -30,22 +30,28 @@ inputPath = "../data/"
 outputPath = "../output/"
 variables = ["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]
 if not load_csv:
-    data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
-    data.to_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
+    my_data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
+    my_data.to_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
 else:
-    try: data = pd.read_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
+    try: my_data = pd.read_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
     except:
         print( "{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv deosn't exist ".format(inputPath,negative_weight,delta,group_events))
         print( "run load_data_2017 ")
-        data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
-        data.to_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
+        my_data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
+        my_data.to_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
 
-print (data)
+print (my_data)
 
 # save log file
 #file_log = open(("Significance_Initial_PairNegWgt{}_Delta{}_GroupEvt{}.log".format(negative_weight,delta,group_events)),"w")
 #file_log.write(df_vor)
 #file_log.close()
+
+# train test split
+data = my_data.sample(frac=0.5,random_state=200)
+df_test = my_data.drop(data.index)
+data = data.reset_index(drop=True)
+df_test = df_test.reset_index(drop=True)
 
 # load signal points to generate voronoi diagram
 sig_points_x = data.ix[(data.target.values==1)]["mvaOutput_2lss_ttV"]
@@ -223,7 +229,8 @@ regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.reg
 
 # save map
 df_map, drop_x, drop_y = tool.save_vor_map(data.ix[(data.target.values==1)], regions, vertices, label_points)
-df_map.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}_map.csv".format(outputPath,negative_weight,delta,group_events), columns=["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar","vor_point","vor_label"])
+df_map.set_index('vor_point',inplace=True)
+df_map.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}_map.csv".format(outputPath,negative_weight,delta,group_events), columns=["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar","vor_label"])
     
 # ksTest
 # create train df
@@ -232,17 +239,17 @@ _, df_vor_train['significance'] = vfunc(df_vor_train['s'], df_vor_train['b1'], d
 print(df_vor_train)
 # create test df
 # apply the map:
-vor_data = tool.apply_vor_map(data,df_map)
+vor_data = tool.apply_vor_map(df_test,df_map)
 vor_data.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}_test.csv".format(outputPath,negative_weight,delta,group_events))
 # to_table
 test_values = ["vor_point","totalWeight"]
 test_index = ["vor_label","target"]
 #print(df)
-data_table = tool.to_table(data,test_values,test_index)
-test_vor_label = data_table.index.get_level_values(0)[data_table.index.get_level_values(1)==1].values
-test_s = data_table.loc[data_table.index.get_level_values(1)==1]["totalWeight"].values
-test_b1 = data_table.loc[data_table.index.get_level_values(1)==2]["totalWeight"].values
-test_b2 = data_table.loc[data_table.index.get_level_values(1)==3]["totalWeight"].values
+test_data_table = tool.to_table(df_test,test_values,test_index)
+test_vor_label = test_data_table.index.get_level_values(0)[test_data_table.index.get_level_values(1)==1].values
+test_s = test_data_table.loc[test_data_table.index.get_level_values(1)==1]["totalWeight"].values
+test_b1 = test_data_table.loc[test_data_table.index.get_level_values(1)==2]["totalWeight"].values
+test_b2 = test_data_table.loc[test_data_table.index.get_level_values(1)==3]["totalWeight"].values
 test_significance = np.zeros(len(test_vor_label))
 _, test_significance = vfunc(test_s, test_b1, test_b2, err_b1, err_b2, minimum_bkg)
 df_vor_test =  pd.DataFrame({"vor_label":test_vor_label,"s":test_s,"b1":test_b1,"b2":test_b2,"significance":test_significance})
