@@ -18,7 +18,7 @@ import geopandas
 # set mimimum bkg for significance calculation
 minimum_bkg = 0.000001
 negative_weight = "Sort" # Sort/Dist
-delta = 100 # load event every delta instance, so the events loaded would be N/delta
+delta = 1000 # load event every delta instance, so the events loaded would be N/delta
 group_events = -1 # group events so each initial cell contains group_events instance, the initial #cell = (N/delta)/group_events
 doPlot = True
 load_csv = True
@@ -96,8 +96,8 @@ if doPlot and len(Vor.regions) < 1000 :
     # plot initial Voronoi diagrams only if vor.regions < 1000
     print (" plot initial Voronoi diagrams ")
     plt = tool.plot_vor_2d(Points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points) 
-    #plt.xlabel("mvaOutput_2lss_ttV")
-    #plt.ylabel("mvaOutput_2lss_ttbar")
+    plt.xlabel("mvaOutput_2lss_ttV")
+    plt.ylabel("mvaOutput_2lss_ttbar")
     #plt.plot(ttV_x,ttV_y,'r.', label='ttV')
     #plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
     plt.legend()
@@ -112,13 +112,7 @@ if doPlot and len(Vor.regions) < 1000 :
 my_values = ["vor_point","totalWeight","error"]
 my_index = ["vor_region","target"]
 #print(df)
-my_list_column = my_values 
-my_list_agg = ['mean']*len(my_list_column)
-my_dict = dict(zip(my_list_column,my_list_agg))
-my_dict['totalWeight']='sum'
-data_table = data.pivot_table(values=my_values, index=my_index, aggfunc = my_dict )
-data_table = data_table.unstack('target', fill_value=0).stack(level=1)
-print data_table
+data_table = tool.to_table(data,my_values,my_index)
 my_vor_region = data_table.index.get_level_values(0)[data_table.index.get_level_values(1)==1].values
 print (my_vor_region)
 my_vor_point = data_table.loc[data_table.index.get_level_values(1)==1]["vor_point"].values
@@ -190,8 +184,8 @@ for index, row in df_vor.iterrows():
         sum_Zsquare += cost
         sum_deltaZ += cost
         s_trail += s
-        b1_trail += b1_trail
-        b2_trail += b2_trail
+        b1_trail += b1
+        b2_trail += b2
         Z_trail = significance
         update_Z[index] = 1
         if cost_fom ==0:
@@ -228,9 +222,37 @@ label_points = df_vor.groupby('vor_label')['vor_point'].apply(list).to_dict()
 regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
 
 # save map
-df_map = tool.save_vor_map(data.ix[(data.target.values==1)], regions, vertices, label_points)
+df_map, drop_x, drop_y = tool.save_vor_map(data.ix[(data.target.values==1)], regions, vertices, label_points)
 df_map.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}_map.csv".format(outputPath,negative_weight,delta,group_events), columns=["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar","vor_point","vor_label"])
     
+# ksTest
+# create train df
+df_vor_train = df_vor.groupby('vor_label').sum()[['s','b1','b2','significance']]
+_, df_vor_train['significance'] = vfunc(df_vor_train['s'], df_vor_train['b1'], df_vor_train['b2'], err_b1, err_b2, minimum_bkg)
+print(df_vor_train)
+# create test df
+# apply the map:
+vor_data = tool.apply_vor_map(data,df_map)
+vor_data.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}_test.csv".format(outputPath,negative_weight,delta,group_events))
+# to_table
+test_values = ["vor_point","totalWeight"]
+test_index = ["vor_label","target"]
+#print(df)
+data_table = tool.to_table(data,test_values,test_index)
+test_vor_label = data_table.index.get_level_values(0)[data_table.index.get_level_values(1)==1].values
+test_s = data_table.loc[data_table.index.get_level_values(1)==1]["totalWeight"].values
+test_b1 = data_table.loc[data_table.index.get_level_values(1)==2]["totalWeight"].values
+test_b2 = data_table.loc[data_table.index.get_level_values(1)==3]["totalWeight"].values
+test_significance = np.zeros(len(test_vor_label))
+_, test_significance = vfunc(test_s, test_b1, test_b2, err_b1, err_b2, minimum_bkg)
+df_vor_test =  pd.DataFrame({"vor_label":test_vor_label,"s":test_s,"b1":test_b1,"b2":test_b2,"significance":test_significance})
+df_vor_test.set_index('vor_label',inplace=True)
+
+# make plots
+tool.make_compare_plot(df_vor_train, df_vor_test, ["s","b1","b2","significance"], "PairNegWgt{}_Delta{}_GroupEvt{}_TrainVsTest.png".format(negative_weight,delta,group_events))
+
+
+
 #if doPlot and len(Vor.regions) < 1000 :
 if doPlot :
     # plot merged Voronoi diagrams with color
@@ -281,6 +303,7 @@ if doPlot :
     plt.ylabel("mvaOutput_2lss_ttbar")
     #plt.plot(ttV_x,ttV_y,'r.', label='ttV')
     #plt.plot(ttJ_x,ttJ_y,'k.', label='ttJ')
+    plt.plot(drop_x,drop_y,'k.', label='drop')
     plt.legend()
 
     #plt.show()

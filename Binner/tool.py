@@ -12,6 +12,7 @@ from ROOT import RooStats
 from scipy import stats
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon
+from matplotlib import gridspec
 from shapely import geometry
 from itertools import compress
 import shapely
@@ -438,9 +439,97 @@ def save_vor_map(data, new_regions, new_vertices, label_points):
     # now save it to the DataFrame
     all_points_labels = dict(zip(all_points,all_labels))
     data['vor_label'] = data['vor_point'].map(all_points_labels)
+    
     df_map = data.dropna(axis=0)
   
     df_na = data[data['vor_label'].isnull()]
-    print df_na[["vor_point","mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]]
+    drop_x = df_na["mvaOutput_2lss_ttV"] 
+    drop_y = df_na["mvaOutput_2lss_ttbar"] 
      
-    return df_map 
+    return df_map, drop_x, drop_y
+    
+
+def to_table(data, my_values, my_index):
+    '''
+        convert dataFrame, so my_values is the function of my_list_agg and my_index is indices
+    '''
+    my_list_column = my_values 
+    my_list_agg = ['mean']*len(my_list_column)
+    my_dict = dict(zip(my_list_column,my_list_agg))
+    my_dict['totalWeight']='sum'
+    data_table = data.pivot_table(values=my_values, index=my_index, aggfunc = my_dict )
+    data_table = data_table.unstack('target', fill_value=0).stack(level=1)
+    return data_table
+
+
+def apply_vor_map(data, vor_map):
+    ''' 
+        apply the vor_map to data
+        input : 
+            data:
+                DataFrame, contains x,y and event weight
+            vor_map:
+                DataFrame, contains minimum set of x,y,vor_label describing the voronoi map
+
+        output :
+            vor_data:
+                DataFrame, data with additional column vor_label
+    '''
+    # get voronoi points 
+    Points = np.vstack((vor_map["mvaOutput_2lss_ttV"],vor_map["mvaOutput_2lss_ttbar"])).T
+    # create the kDTree 
+    tree = KDTree(Points)
+    # create application points
+    app_points = np.vstack((data["mvaOutput_2lss_ttV"],data["mvaOutput_2lss_ttbar"])).T
+    # closest neighbor point index
+    point_idx = tree.query(app_points)[1]
+    # vor label that closest neighbor point belongs to
+    labels = vor_map.ix[point_idx]["vor_label"].values
+    vor_data = data
+    vor_data["vor_label"] = labels
+
+    return vor_data
+
+
+def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(10, 8)):
+    '''
+        OUTPUT: 
+            No statistic test here because:
+            - ks-Test is suitable only for continuous distribution 
+            - Chi2 test is invalid when the obs or exp frequencies in each category are too small ( threshold 5)
+        INPUTS:
+        df_train - DataFrame voronoi train
+        df_test - DataFrame voronoi application
+        bins - number of bins for viz. Default 30.
+        fig_sz - change to True in order to get larger outputs. Default False.
+    
+    '''
+    
+    x_train = df_train.index.values
+    x_test = df_test.index.values
+    for var in variables:
+        y_train = df_train[var]
+        y_test = df_test[var]
+        if Norm:
+            y_train = y_train/np.linalg.norm(y_train)
+            y_test = y_test/np.linalg.norm(y_test)
+    
+        y_ratio=[(lambda x,y: x/y if y!=0 else(1 if x==0 else 0 ) )(a,b) for a,b in zip(y_train,y_test) ]
+
+
+        gs = gridspec.GridSpec(2,1, height_ratios=[4,1])
+        ax1 = plt.subplot(gs[0])
+        ax2 = plt.subplot(gs[1])
+        ax1.plot(x_train, y_train, 'b+', label='train')
+        ax1.plot(x_test, y_test, 'rx', label='test')
+        ax1.grid(True)
+        ax1.set(ylabel="Normalized Unit")
+        ax1.set_title(var)
+        ax1.legend()
+        ax2.grid(True)
+        ax2.set(ylabel=r'$\frac{train}{test}$')
+        ax2.plot(x_train,y_ratio, 'k.')
+        ax2.set(xlabel="vor_label")
+        ax2.set_ylim(0,2)
+        plt.savefig("var-{}-{}".format(var,figname))
+        plt.clf()
