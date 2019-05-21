@@ -341,7 +341,7 @@ def get_significance(s, b1, b2, err_b1, err_b2, threshold):
     err_b1_b2 = eff_error(b1, b2, err_b1, err_b2, threshold)
     nB = max(b1+b2, threshold)
     significance = 0.
-    if s >= 0:
+    if s > 0:
         # please think and figure out a better way to treat negative weight 
         significance = RooStats.AsimovSignificance(s, nB, err_b1_b2)
     return err_b1_b2, significance
@@ -485,7 +485,8 @@ def apply_vor_map(data, vor_map):
     point_idx = tree.query(app_points)[1]
     print ( point_idx )
     # vor label that closest neighbor point belongs to
-    labels = vor_map.loc[point_idx]["vor_label"].values
+    #labels = vor_map.loc[point_idx]["vor_label"].values
+    labels = vor_map.ix[point_idx]["vor_label"].values
     vor_data = data
     vor_data["vor_label"] = labels
 
@@ -532,5 +533,5 @@ def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(
         ax2.plot(x_train,y_ratio, 'k.')
         ax2.set(xlabel="vor_label")
         ax2.set_ylim(0,2)
-        plt.savefig("var-{}-{}".format(var,figname))
+        plt.savefig("{}-var-{}.png".format(figname,var))
         plt.clf()

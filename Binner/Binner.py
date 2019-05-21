@@ -1,4 +1,5 @@
 # coding: utf-8
+import os
 import numpy as np
 import pandas as pd
 import tool
@@ -18,37 +19,41 @@ import geopandas
 # set mimimum bkg for significance calculation
 minimum_bkg = 0.000001
 negative_weight = "Sort" # Sort/Dist
-delta = 1000 # load event every delta instance, so the events loaded would be N/delta
+delta = 100 # load event every delta instance, so the events loaded would be N/delta
 group_events = -1 # group events so each initial cell contains group_events instance, the initial #cell = (N/delta)/group_events
 doPlot = True
 load_csv = True
 err_b1 = 0.15 
 err_b2 = 0.25 
+tf = 0.5
 
 # load data
 inputPath = "../data/"
 outputPath = "../output/"
+plotPath = "../plots/TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}/".format(tf,negative_weight,delta,group_events)
+if not os.path.exists(plotPath):
+    os.makedirs(plotPath)
 variables = ["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]
+# save log file
+file_log = open(("{}TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}.log".format(outputPath,tf,negative_weight,delta,group_events)),"w")
+
 if not load_csv:
     my_data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
     my_data.to_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
 else:
     try: my_data = pd.read_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
     except:
-        print( "{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv deosn't exist ".format(inputPath,negative_weight,delta,group_events))
-        print( "run load_data_2017 ")
+        file_log.write( "{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv deosn't exist\n ".format(inputPath,negative_weight,delta,group_events))
+        file_log.write( "run load_data_2017 \n")
         my_data=load_data_2017(inputPath, variables, "passGenMatchCut==1", skip = delta ,nEvt=group_events, pair_negwgt = negative_weight ) 
         my_data.to_csv("{}input_PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(inputPath,negative_weight,delta,group_events))
 
-print (my_data)
+print("finish load lata my_data")
+file_log.write(str(my_data)+"\n")
 
-# save log file
-#file_log = open(("Significance_Initial_PairNegWgt{}_Delta{}_GroupEvt{}.log".format(negative_weight,delta,group_events)),"w")
-#file_log.write(df_vor)
-#file_log.close()
 
 # train test split
-data = my_data.sample(frac=0.5,random_state=200)
+data = my_data.sample(frac=tf,random_state=200)
 df_test = my_data.drop(data.index)
 data = data.reset_index(drop=True)
 df_test = df_test.reset_index(drop=True)
@@ -60,10 +65,10 @@ sig_points_y = data.ix[(data.target.values==1)]["mvaOutput_2lss_ttbar"]
 Points=np.vstack((sig_points_x,sig_points_y)).T
 
 Vor = Voronoi(Points)
-print("print voronoi vertices")
-print(Vor.vertices)
-print("print voronoi regions")
-print(Vor.regions)
+#print("print voronoi vertices")
+#print(Vor.vertices)
+#print("print voronoi regions")
+#print(Vor.regions)
 
 # set signal vor_point and vor_region
 mask = data.target ==1
@@ -82,20 +87,20 @@ ttJ_y = data.ix[(data.target.values==3)]["mvaOutput_2lss_ttbar"]
 ttJ_points = np.vstack((ttJ_x,ttJ_y)).T
 
 point_idx, region_idx = tool.find_vor_region(ttV_points,Vor)
-print("region idx is {}".format(region_idx))
+#print("region idx is {}".format(region_idx))
 mask = data.target ==2
 data.loc[mask,"vor_region"]= region_idx
 data.loc[mask,"vor_point"]= point_idx
 
 point_idx, region_idx = tool.find_vor_region(ttJ_points,Vor)
-print("region idx is {}".format(region_idx))
+#print("region idx is {}".format(region_idx))
 mask = data.target ==3
 data.loc[mask,"vor_region"]= region_idx
 data.loc[mask,"vor_point"]= point_idx
 
 # sort data by vor_region
 print ("finish assigning bkgs")
-print (data)
+file_log.write("finish assining bkgs, data is {} \n".format(data))
 
 if doPlot and len(Vor.regions) < 1000 :
 #if doPlot:
@@ -109,7 +114,7 @@ if doPlot and len(Vor.regions) < 1000 :
     plt.legend()
     plt.title("initial voronoi diagrams")
     #plt.show()
-    plt.savefig("Voronoi_initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
+    plt.savefig("{}TrainFrac{}_Voronoi_initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(plotPath,tf,negative_weight,delta,group_events))
     plt.close()
 
     print (" finish plot initial Voronoi diagrams ")
@@ -120,15 +125,15 @@ my_index = ["vor_region","target"]
 #print(df)
 data_table = tool.to_table(data,my_values,my_index)
 my_vor_region = data_table.index.get_level_values(0)[data_table.index.get_level_values(1)==1].values
-print (my_vor_region)
+#print (my_vor_region)
 my_vor_point = data_table.loc[data_table.index.get_level_values(1)==1]["vor_point"].values
-print (my_vor_point)
+#print (my_vor_point)
 my_s = data_table.loc[data_table.index.get_level_values(1)==1]["totalWeight"].values
 my_b1 = data_table.loc[data_table.index.get_level_values(1)==2]["totalWeight"].values
 my_b2 = data_table.loc[data_table.index.get_level_values(1)==3]["totalWeight"].values
 my_err_sum_b = np.zeros(len(my_vor_region))
 my_significance = np.zeros(len(my_vor_region))
-print(my_err_sum_b)
+#print(my_err_sum_b)
 print ("calculate significance")
 vfunc = np.vectorize(tool.get_significance)
 my_err_sum_b, my_significance = vfunc(my_s, my_b1, my_b2, err_b1, err_b2, minimum_bkg)
@@ -137,14 +142,12 @@ print ("finish calculate significance")
 
 df_vor =  pd.DataFrame({"vor_point":my_vor_point,"vor_region":my_vor_region,"s":my_s,"b1":my_b1,"b2":my_b2,"error":my_err_sum_b,"significance":my_significance})
 
-print(df_vor)
 
 # sort by significance
 df_vor.sort_values(by="significance", ascending=False, inplace=True)
 df_vor = df_vor.reset_index(drop=True)
 
-print(df_vor)
-print(df_vor["significance"].values)
+file_log.write("finish calculate siginificance, after sorting df_vor is {}\n".format(df_vor))
 
 if doPlot:
     # plot the original significance
@@ -153,7 +156,7 @@ if doPlot:
     plt.xlabel("Z")
     plt.ylabel("%")
     plt.title("Z distribution")
-    plt.savefig("Significance_Initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
+    plt.savefig("{}TrainFrac{}_Significance_Initial_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(plotPath,tf,negative_weight,delta,group_events))
     plt.close()
 
 # bin merge algorithm
@@ -219,8 +222,9 @@ df_vor["lag_sig"] = lag_Z
 df_vor["update"] = update_Z
 df_vor["vor_label"] = vor_cell
 
-df_vor.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}.csv".format(outputPath,negative_weight,delta,group_events))
-print(df_vor)
+df_vor.to_csv("{}TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}_df_vor.csv".format(outputPath,tf,negative_weight,delta,group_events))
+print("finish merge algorithm")
+file_log.write("finish merge algorithm df_vor is saved into {}PairNegWgt{}_Delta{}_GroupEvt{}.csv \n".format(outputPath,negative_weight,delta,group_events))
 
 # dictionary to save {label:[p1,p2,..., pN]}
 label_points = df_vor.groupby('vor_label')['vor_point'].apply(list).to_dict() 
@@ -228,24 +232,25 @@ label_points = df_vor.groupby('vor_label')['vor_point'].apply(list).to_dict()
 regions, vertices = voronoi_finite_polygons_2d(Vor.points, Vor.vertices, Vor.regions, Vor.ridge_vertices, Vor.ridge_points, Vor.point_region)
 
 # save map
+print(data)
 df_map, drop_x, drop_y = tool.save_vor_map(data.ix[(data.target.values==1)], regions, vertices, label_points)
-df_map.set_index('vor_point',inplace=True)
-df_map.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}_map.csv".format(outputPath,negative_weight,delta,group_events), columns=["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar","vor_label"])
+df_map = df_map.reset_index(drop=True)
+df_map.to_csv("{}TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}_map.csv".format(outputPath,tf,negative_weight,delta,group_events), columns=["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar","vor_label"])
     
 # ksTest
 # create train df
 df_vor_train = df_vor.groupby('vor_label').sum()[['s','b1','b2','significance']]
 _, df_vor_train['significance'] = vfunc(df_vor_train['s'], df_vor_train['b1'], df_vor_train['b2'], err_b1, err_b2, minimum_bkg)
-print(df_vor_train)
+file_log.write(" overtrain test: \n df_vor_train is - \n {}".format(df_vor_train))
 # create test df
 # apply the map:
 vor_data = tool.apply_vor_map(df_test,df_map)
-vor_data.to_csv("{}PairNegWgt{}_Delta{}_GroupEvt{}_test.csv".format(outputPath,negative_weight,delta,group_events))
+vor_data.to_csv("{}TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}_test.csv".format(outputPath,tf,negative_weight,delta,group_events))
 # to_table
 test_values = ["vor_point","totalWeight"]
 test_index = ["vor_label","target"]
 #print(df)
-test_data_table = tool.to_table(df_test,test_values,test_index)
+test_data_table = tool.to_table(vor_data,test_values,test_index)
 test_vor_label = test_data_table.index.get_level_values(0)[test_data_table.index.get_level_values(1)==1].values
 test_s = test_data_table.loc[test_data_table.index.get_level_values(1)==1]["totalWeight"].values
 test_b1 = test_data_table.loc[test_data_table.index.get_level_values(1)==2]["totalWeight"].values
@@ -254,14 +259,16 @@ test_significance = np.zeros(len(test_vor_label))
 _, test_significance = vfunc(test_s, test_b1, test_b2, err_b1, err_b2, minimum_bkg)
 df_vor_test =  pd.DataFrame({"vor_label":test_vor_label,"s":test_s,"b1":test_b1,"b2":test_b2,"significance":test_significance})
 df_vor_test.set_index('vor_label',inplace=True)
+file_log.write(" overtrain test: \n df_vor_test is - \n {}".format(df_vor_test))
 
+print(" finish loading train and test data")
 # make plots
-tool.make_compare_plot(df_vor_train, df_vor_test, ["s","b1","b2","significance"], "PairNegWgt{}_Delta{}_GroupEvt{}_TrainVsTest.png".format(negative_weight,delta,group_events))
+tool.make_compare_plot(df_vor_train, df_vor_test, ["s","b1","b2","significance"], "{}TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}_TrainVsTest".format(plotPath,tf,negative_weight,delta,group_events))
 
+print(" finish plot train/test comparison and prepare to plot final voronoi region ")
 
-
-#if doPlot and len(Vor.regions) < 1000 :
-if doPlot :
+if doPlot and len(Vor.regions) < 1000 :
+#if doPlot :
     # plot merged Voronoi diagrams with color
     print (" plot final merged Voronoi diagrams ")
     
@@ -314,9 +321,10 @@ if doPlot :
     plt.legend()
 
     #plt.show()
-    plt.savefig("ColoredVoronoi_Final_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
+    plt.savefig("{}TrainFrac{}_ColoredVoronoi_Final_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(plotPath,tf,negative_weight,delta,group_events))
     plt.close()
 
+print(" finish plot final voronoi region and prepare to plot evolving history ")
 if doPlot: 
     # plot the evolving history
     print (" plot the evolving history ")
@@ -340,5 +348,8 @@ if doPlot:
     ax2.plot(evolve_x[::my_slice],y_deltasig[::my_slice], 'k.')
     ax2.set(xlabel="#cell")
     ax2.set_ylim(-0.1*y_max,1.1*y_max)
-    plt.savefig("Z_evolve_history_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(negative_weight,delta,group_events))
+    plt.savefig("{}TrainFrac{}_Z_evolve_history_PairNegWgt{}_Delta{}_GroupEvt{}.png".format(plotPath,tf,negative_weight,delta,group_events))
     plt.clf()
+
+
+file_log.close()

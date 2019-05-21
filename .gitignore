@@ -1,2 +1,6 @@
 Binner/*.png
 Binner/*.pyc
+output/*.csv
+output/*.log
+plots/*
+data/*.csv
