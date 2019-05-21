@@ -341,7 +341,8 @@ def get_significance(s, b1, b2, err_b1, err_b2, threshold):
     err_b1_b2 = eff_error(b1, b2, err_b1, err_b2, threshold)
     nB = max(b1+b2, threshold)
     significance = 0.
-    if s > 0:
+    if s > 1.1e-10:
+        # value smaller than this cause NaN value when use vfunc
         # please think and figure out a better way to treat negative weight 
         significance = RooStats.AsimovSignificance(s, nB, err_b1_b2)
     return err_b1_b2, significance
@@ -483,13 +484,11 @@ def apply_vor_map(data, vor_map):
     app_points = np.vstack((data["mvaOutput_2lss_ttV"],data["mvaOutput_2lss_ttbar"])).T
     # closest neighbor point index
     point_idx = tree.query(app_points)[1]
-    print ( point_idx )
     # vor label that closest neighbor point belongs to
     #labels = vor_map.loc[point_idx]["vor_label"].values
     labels = vor_map.ix[point_idx]["vor_label"].values
     vor_data = data
     vor_data["vor_label"] = labels
-
     return vor_data
 
 
@@ -509,27 +508,34 @@ def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(
     
     x_train = df_train.index.values
     x_test = df_test.index.values
+    x_diff = np.setdiff1d(x_train,x_test)
+    x_test=np.concatenate((x_test,x_diff))
     for var in variables:
+        print ( " plot comparison : var-{} ".format(var))
         y_train = df_train[var]
         y_test = df_test[var]
         if Norm:
             y_train = y_train/np.linalg.norm(y_train)
             y_test = y_test/np.linalg.norm(y_test)
-    
-        y_ratio=[(lambda x,y: x/y if y!=0 else(1 if x==0 else 0 ) )(a,b) for a,b in zip(y_train,y_test) ]
+        y_test = np.concatenate((y_test,np.zeros(len(x_diff))))
+        y_ratio=[(lambda x,y: x/y if y!=0 else(1 if x==0 else 0 ) )(a,b) for a,b in zip(y_test,y_train) ]
+        
+        #print ( " len x_train, y_train: {},{} ".format(len(x_train),len(y_train)))
+        #print ( " len x_test, y_test: {},{} ".format(len(x_test),len(y_test)))
+        #print ( " len y_ratio".format(len(y_ratio)))
 
 
         gs = gridspec.GridSpec(2,1, height_ratios=[4,1])
         ax1 = plt.subplot(gs[0])
         ax2 = plt.subplot(gs[1])
-        ax1.plot(x_train, y_train, 'b+', label='train')
-        ax1.plot(x_test, y_test, 'rx', label='test')
+        ax1.plot(x_train, y_train, 'b+-', label='train')
+        ax1.plot(x_test, y_test, 'rx-', label='test')
         ax1.grid(True)
         ax1.set(ylabel="Normalized Unit")
         ax1.set_title(var)
         ax1.legend()
         ax2.grid(True)
-        ax2.set(ylabel=r'$\frac{train}{test}$')
+        ax2.set(ylabel=r'$\frac{test}{train}$')
         ax2.plot(x_train,y_ratio, 'k.')
         ax2.set(xlabel="vor_label")
         ax2.set_ylim(0,2)
