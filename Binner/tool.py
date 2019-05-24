@@ -340,11 +340,10 @@ def get_significance(s, b1, b2, err_b1, err_b2, threshold):
     '''
     err_b1_b2 = eff_error(b1, b2, err_b1, err_b2, threshold)
     nB = max(b1+b2, threshold)
-    significance = 0.
-    if s > 1.1e-10:
-        # value smaller than this cause NaN value when use vfunc
-        # please think and figure out a better way to treat negative weight 
-        significance = RooStats.AsimovSignificance(s, nB, err_b1_b2)
+    # NaN when s/nB is too small 
+    significance = RooStats.AsimovSignificance(s, nB, err_b1_b2)
+    if math.isnan(significance):
+        significance = 0.
     return err_b1_b2, significance
 
 def cost_fun(z0, z1, z2, fom=0):
