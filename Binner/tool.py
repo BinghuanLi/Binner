@@ -31,11 +31,12 @@ def bin_events(df, variables, nEvt =-1):
     df = df.ix[np.argsort(df.mvaOutput_2lss_ttV + df.mvaOutput_2lss_ttbar).values]
     df.reset_index(drop=True, inplace = True)
     #print(df)
-    my_list_column = variables + ['totalWeight','entries']
+    my_list_column = variables + ['totalWeight','entries','sumw2']
     my_list_agg = ['mean']*len(variables)
     my_dict = dict(zip(my_list_column,my_list_agg))
     my_dict['totalWeight']='sum'
     my_dict['entries']='sum'
+    my_dict['sumw2']='sum'
     #print(my_dict)
     df = df.groupby(df.index / nEvt).agg(my_dict)
     return df
@@ -69,6 +70,7 @@ def pair_negative_distance(df):
             #print (point_idx)
             if df.loc[point_idx,'entries'].sum() >0 and df.loc[point_idx,'totalWeight'].sum() >0:
                 df.at[i,'totalWeight'] = df.loc[point_idx,'totalWeight'].sum()
+                df.at[i,'sumw2'] = df.loc[point_idx,'sumw2'].sum()
                 df.at[i,'entries'] = df.loc[point_idx,'entries'].sum()
                 df.at[i,'mvaOutput_2lss_ttV'] = df.loc[point_idx,'mvaOutput_2lss_ttV'].mean()
                 df.at[i,'mvaOutput_2lss_ttbar'] = df.loc[point_idx,'mvaOutput_2lss_ttbar'].mean()
@@ -105,6 +107,7 @@ def pair_negative(df):
         while (count+i) <=  df.index.max() :
             df.at[i,'entries'] = df.at[i,'entries']+df.at[count+i,'entries']
             df.at[i,'totalWeight'] = df.at[i,'totalWeight']+ df.at[count+i,'totalWeight']
+            df.at[i,'sumw2'] = df.at[i,'sumw2']+ df.at[count+i,'sumw2']
             df.at[i,'mvaOutput_2lss_ttV'] = df.at[i,'mvaOutput_2lss_ttV']+ df.at[count+i,'mvaOutput_2lss_ttV']
             df.at[i,'mvaOutput_2lss_ttbar'] = df.at[i,'mvaOutput_2lss_ttbar']+ df.at[count+i,'mvaOutput_2lss_ttbar']
             drop_indices.append(count+i)
@@ -136,6 +139,7 @@ def pair_negative(df):
             while (i-count) >=  df.index.min():
                 df.at[i,'entries'] = df.at[i,'entries']+df.at[i-count,'entries']
                 df.at[i,'totalWeight'] = df.at[i,'totalWeight']+ df.at[i-count,'totalWeight']
+                df.at[i,'sumw2'] = df.at[i,'sumw2']+ df.at[i-count,'sumw2']
                 df.at[i,'mvaOutput_2lss_ttV'] = df.at[i,'mvaOutput_2lss_ttV']+ df.at[i-count,'mvaOutput_2lss_ttV']
                 df.at[i,'mvaOutput_2lss_ttbar'] = df.at[i,'mvaOutput_2lss_ttbar']+ df.at[i-count,'mvaOutput_2lss_ttbar']
                 drop_indices.append(i-count)
@@ -168,7 +172,7 @@ def pair_negative(df):
 #load_data_2017(inputPath, variables, False)  # select all jets
 def load_data_2017(inputPath,variables,criteria, skip=1, nEvt=-1, pair_negwgt = "Sort"):
     print variables
-    my_cols_list=variables+['proces', 'key', 'target','totalWeight','entries','error','vor_point','vor_region']
+    my_cols_list=variables+['proces', 'key', 'target','totalWeight','sumw2','entries','error','vor_point','vor_region']
     data = pd.DataFrame(columns=my_cols_list)
     keys=['ttHnobb_SigRegion','ttWJets_SigRegion',"ttZJets_SigRegion","ttJets_SigRegion"]
     print keys
@@ -204,6 +208,7 @@ def load_data_2017(inputPath,variables,criteria, skip=1, nEvt=-1, pair_negwgt = 
                 #print (chunk_arr)
                 chunk_df = pd.DataFrame(chunk_arr, columns=variables)
                 chunk_df['totalWeight']=chunk_arr['EventWeight']
+                chunk_df['sumw2']=chunk_arr['EventWeight']**2
                 chunk_df['entries']=np.sign(chunk_arr['EventWeight'])
                 if pair_negwgt == "Sort":
                     chunk_df=pair_negative(chunk_df) 
@@ -243,7 +248,12 @@ def load_data_2017(inputPath,variables,criteria, skip=1, nEvt=-1, pair_negwgt = 
     nS = data.ix[ (data.target.values==1)]["totalWeight"].sum() 
     nB1 = data.ix[ (data.target.values==2)]["totalWeight"].sum() 
     nB2 = data.ix[ (data.target.values==3)]["totalWeight"].sum() 
+    n_err = math.sqrt(data["sumw2"].sum())
+    nS_err = math.sqrt(data.ix[ (data.target.values==1)]["sumw2"].sum() )
+    nB1_err = math.sqrt(data.ix[ (data.target.values==2)]["sumw2"].sum() )
+    nB2_err = math.sqrt(data.ix[ (data.target.values==3)]["sumw2"].sum() )
     print " yield of data, sig, bkg1, bkg2: ", n, nS, nB1, nB2
+    print " err of data, sig, bkg1, bkg2: ", n_err, nS_err, nB1_err, nB2_err
     return data
 
 
@@ -453,10 +463,13 @@ def to_table(data, my_values, my_index):
     '''
         convert dataFrame, so my_values is the function of my_list_agg and my_index is indices
     '''
-    my_list_column = my_values 
+    my_list_column = my_values
+    print (my_list_column) 
     my_list_agg = ['mean']*len(my_list_column)
     my_dict = dict(zip(my_list_column,my_list_agg))
     my_dict['totalWeight']='sum'
+    my_dict['sumw2']='sum'
+    my_dict['entries']='sum'
     data_table = data.pivot_table(values=my_values, index=my_index, aggfunc = my_dict )
     data_table = data_table.unstack('target', fill_value=0).stack(level=1)
     return data_table
@@ -513,10 +526,18 @@ def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(
         print ( " plot comparison : var-{} ".format(var))
         y_train = df_train[var]
         y_test = df_test[var]
+        y_train_err = np.zeros(len(x_train))
+        y_test_err = np.zeros(len(x_test))
+        if var == 's' or var == 'b1' or var == 'b2':
+            y_train_err = np.sqrt(df_train["sumw2_{}".format(var)])
+            y_test_err = np.sqrt(df_test["sumw2_{}".format(var)])
         if Norm:
             y_train = y_train/np.linalg.norm(y_train)
+            y_train_err = y_train_err/np.linalg.norm(y_train)
             y_test = y_test/np.linalg.norm(y_test)
+            y_test_err = y_test_err/np.linalg.norm(y_test)
         y_test = np.concatenate((y_test,np.zeros(len(x_diff))))
+        y_test_err = np.concatenate((y_test_err,np.zeros(len(x_diff))))
         y_ratio=[(lambda x,y: x/y if y!=0 else(1 if x==0 else 0 ) )(a,b) for a,b in zip(y_test,y_train) ]
         
         #print ( " len x_train, y_train: {},{} ".format(len(x_train),len(y_train)))
@@ -527,8 +548,8 @@ def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(
         gs = gridspec.GridSpec(2,1, height_ratios=[4,1])
         ax1 = plt.subplot(gs[0])
         ax2 = plt.subplot(gs[1])
-        ax1.plot(x_train, y_train, 'b+-', label='train')
-        ax1.plot(x_test, y_test, 'rx-', label='test')
+        ax1.errorbar(x_train, y_train,yerr=y_train_err ,c='b',marker=',', ls='--', label='train')
+        ax1.errorbar(x_test, y_test, yerr=y_test_err, c='r',marker=',', ls='--', label='test')
         ax1.grid(True)
         ax1.set(ylabel="Normalized Unit")
         ax1.set_title(var)
@@ -540,3 +561,19 @@ def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(
         ax2.set_ylim(0,2)
         plt.savefig("{}-var-{}.png".format(figname,var))
         plt.clf()
+
+def have_enough_stat(w,sumw2,entrie,minimum_entries,maximum_error,useErr=True):
+    '''
+        check statistics in each bin
+        useErr: return (sqrt(sumw2)/w < maximum_error)
+        else: return (entrie > minimum_entries)
+        
+    '''
+    if useErr:
+        if w <=0.:
+            return False
+        else:
+            return (math.sqrt(sumw2)/w < maximum_error)
+    else:
+        return (entrie > minimum_entries)
+    
