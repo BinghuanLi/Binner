@@ -27,15 +27,15 @@ load_csv = True
 err_b1 = 0.15 
 err_b2 = 0.25 
 tf = 0.5
-useError = True
-maxErr = 0.2
-minMC = 20
+useError = False
+maxErr = 999
+minMC = -1
 date=datetime.today().strftime('%Y%m%d')
 
 # load data
 inputPath = "../data/"
-outputPath = "../output/"
-plotPath = "../plots/TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}/".format(tf,negative_weight,delta,group_events)
+outputPath = "../output/QT100/"
+plotPath = "../plots/QT100_TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}/".format(tf,negative_weight,delta,group_events)
 if not os.path.exists(plotPath):
     os.makedirs(plotPath)
 variables = ["mvaOutput_2lss_ttV","mvaOutput_2lss_ttbar"]
@@ -172,6 +172,33 @@ if doPlot:
     plt.savefig("{}TrainFrac{}_Significance_Initial_PairNegWgt{}_Delta{}_GroupEvt{}_useErr{}_minMC{}_maxErr{}_{}.png".format(plotPath,tf,negative_weight,delta,group_events,useError,minMC,maxErr,date))
     plt.close()
 
+# get and add qunatiles to df_vor
+vor_qt = pd.qcut(range(len(df_vor)),100,labels=False)
+df_vor["vor_qt"] = vor_qt
+# grouping by quantiles
+df_quantile = df_vor[['s','b1','b2','sumw2_s','sumw2_b1','sumw2_b2','entrie_s','entrie_b1','entrie_b2','vor_qt']]
+print(df_quantile)
+df_quantile = df_quantile.groupby('vor_qt').sum().reset_index()
+print(df_quantile)
+
+print ("calculate qt significance")
+my_err_sum_b, qt_significance = vfunc(df_quantile.s.values, df_quantile.b1.values, df_quantile.b2.values, err_b1, err_b2, minimum_bkg)
+df_quantile["significance"] = qt_significance
+df_quantile.sort_values(by="significance", ascending=False, inplace=True)
+df_quantile = df_quantile.reset_index(drop=True)
+
+print ("finish calculate qt significance")
+
+if doPlot:
+    # plot the qt significance
+    print (" plot qt significance ")
+    values1, bins, _ = plt.hist(df_quantile["significance"].values, bins = 10, alpha =0.5, range=(0., 1.01*df_quantile["significance"].values[0]) , density = True)
+    plt.xlabel("Z")
+    plt.ylabel("%")
+    plt.title("Z distribution")
+    plt.savefig("{}TrainFrac{}_QT_Significance_Initial_PairNegWgt{}_Delta{}_GroupEvt{}_useErr{}_minMC{}_maxErr{}_{}.png".format(plotPath,tf,negative_weight,delta,group_events,useError,minMC,maxErr,date))
+    plt.close()
+
 # bin merge algorithm
 s_trail =0
 b1_trail = 0
@@ -181,10 +208,10 @@ sumw2_b2_trail = 0
 entrie_b1_trail = 0
 entrie_b2_trail = 0
 Z_trail = 0
-n_cells = len(df_vor.index)
+n_cells = len(df_quantile.index)
 # set cost function
 cost_fom = 0
-sum_Zsquare =  (df_vor["significance"]**2).sum()
+sum_Zsquare =  (df_quantile["significance"]**2).sum()
 sum_deltaZ =0
 # save updated Z
 total_Z = np.zeros(n_cells)
@@ -195,7 +222,7 @@ update_Z = np.zeros(n_cells)
 # save the new vor_cell number, starting from 0
 vor_cell = np.full((n_cells,),-1)
 vor_count = 0
-for index, row in df_vor.iterrows():
+for index, row in df_quantile.iterrows():
     s = row["s"]
     b1 = row["b1"]
     b2 = row["b2"]
@@ -250,10 +277,20 @@ for index, row in df_vor.iterrows():
         vor_count +=1
     vor_cell[index] = vor_count 
 
-df_vor["total_sig"] = total_Z
-df_vor["lag_sig"] = lag_Z
-df_vor["update"] = update_Z
-df_vor["vor_label"] = vor_cell
+df_quantile["total_sig"] = total_Z
+df_quantile["lag_sig"] = lag_Z
+df_quantile["update"] = update_Z
+df_quantile["vor_label"] = vor_cell
+
+print(df_quantile)
+
+# now save it to the DataFrame
+all_qt_labels = dict(zip(vor_qt,vor_cell))
+print( " vor_qt : vor_cell dictionary ")
+print(vor_qt)
+print(vor_cell)
+print(all_qt_labels)
+df_vor['vor_label'] = df_vor['vor_qt'].map(all_qt_labels)
 
 df_vor.to_csv("{}TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}_useErr{}_minMC{}_maxErr{}_df_vor.csv".format(outputPath,tf,negative_weight,delta,group_events,useError,minMC,maxErr))
 print("finish merge algorithm")
@@ -369,8 +406,8 @@ if doPlot:
     print (" plot the evolving history ")
     my_slice = int(math.ceil(n_cells/100.))
     evolve_x = np.arange(n_cells)
-    y_totsig = df_vor["total_sig"].values
-    y_lagsig = df_vor["lag_sig"].values
+    y_totsig = df_quantile["total_sig"].values
+    y_lagsig = df_quantile["lag_sig"].values
     y_deltasig = 100.*(y_totsig - y_lagsig)/y_lagsig
     y_max = np.max(y_deltasig[::my_slice])
     y_min = np.min(y_deltasig[::my_slice])
@@ -388,7 +425,7 @@ if doPlot:
     ax2.plot(evolve_x[::my_slice],y_deltasig[::my_slice], 'k.')
     ax2.set(xlabel="#cell")
     ax2.set_ylim(min(-0.1*y_max, 1.1*y_min),1.1*y_max)
-    plt.savefig("{}TrainFrac{}_Z_evolve_history_PairNegWgt{}_Delta{}_GroupEvt{}_useErr{}_minMC{}_maxErr{}_{}.png".format(plotPath,tf,negative_weight,delta,group_events,useError,minMC,maxErr,date))
+    plt.savefig("{}TrainFrac{}_QT_Z_evolve_history_PairNegWgt{}_Delta{}_GroupEvt{}_useErr{}_minMC{}_maxErr{}_{}.png".format(plotPath,tf,negative_weight,delta,group_events,useError,minMC,maxErr,date))
     plt.clf()
 
 
