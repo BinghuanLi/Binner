@@ -20,7 +20,7 @@ import geopandas
 # set mimimum bkg for significance calculation
 minimum_bkg = 0.000001
 negative_weight = "Sort" # Sort/Dist
-delta = 1 # load event every delta instance, so the events loaded would be N/delta
+delta = 10 # load event every delta instance, so the events loaded would be N/delta
 group_events = -1 # group events so each initial cell contains group_events instance, the initial #cell = (N/delta)/group_events
 doPlot = True
 load_csv = True
@@ -191,8 +191,10 @@ print ("finish calculate qt significance")
 
 if doPlot:
     # plot the qt significance
+    print(df_quantile)
     print (" plot qt significance ")
     values1, bins, _ = plt.hist(df_quantile["significance"].values, bins = 10, alpha =0.5, range=(0., 1.01*df_quantile["significance"].values[0]) , density = True)
+    print(values1)
     plt.xlabel("Z")
     plt.ylabel("%")
     plt.title("Z distribution")
@@ -282,7 +284,7 @@ df_quantile["lag_sig"] = lag_Z
 df_quantile["update"] = update_Z
 df_quantile["vor_label"] = vor_cell
 
-print(df_quantile)
+#print(df_quantile)
 
 # now save it to the DataFrame
 all_qt_labels = dict(zip(df_quantile["vor_qt"].values,vor_cell))

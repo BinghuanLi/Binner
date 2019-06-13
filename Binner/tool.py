@@ -531,7 +531,7 @@ def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(
         if var == 's' or var == 'b1' or var == 'b2':
             y_train_err = np.sqrt(df_train["sumw2_{}".format(var)])
             y_test_err = np.sqrt(df_test["sumw2_{}".format(var)])
-        if Norm:
+        if Norm and not var =='significance':
             y_train = y_train/np.linalg.norm(y_train)
             y_train_err = y_train_err/np.linalg.norm(y_train)
             y_test = y_test/np.linalg.norm(y_test)
@@ -551,7 +551,10 @@ def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(
         ax1.errorbar(x_train, y_train,yerr=y_train_err ,c='b',marker=',', ls='--', label='train')
         ax1.errorbar(x_test, y_test, yerr=y_test_err, c='r',marker=',', ls='--', label='test')
         ax1.grid(True)
-        ax1.set(ylabel="Normalized Unit")
+        if var=='significance':
+            ax1.set(ylabel="Z")
+        else:
+            ax1.set(ylabel="Normalized Unit")
         ax1.set_title(var)
         ax1.legend()
         ax2.grid(True)
