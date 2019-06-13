@@ -20,7 +20,7 @@ import geopandas
 # set mimimum bkg for significance calculation
 minimum_bkg = 0.000001
 negative_weight = "Sort" # Sort/Dist
-delta = 100 # load event every delta instance, so the events loaded would be N/delta
+delta = 1 # load event every delta instance, so the events loaded would be N/delta
 group_events = -1 # group events so each initial cell contains group_events instance, the initial #cell = (N/delta)/group_events
 doPlot = True
 load_csv = True
@@ -285,9 +285,9 @@ df_quantile["vor_label"] = vor_cell
 print(df_quantile)
 
 # now save it to the DataFrame
-all_qt_labels = dict(zip(vor_qt,vor_cell))
+all_qt_labels = dict(zip(df_quantile["vor_qt"].values,vor_cell))
 print( " vor_qt : vor_cell dictionary ")
-print(vor_qt)
+print(df_quantile["vor_qt"].values)
 print(vor_cell)
 print(all_qt_labels)
 df_vor['vor_label'] = df_vor['vor_qt'].map(all_qt_labels)
@@ -312,10 +312,12 @@ df_map.to_csv("{}TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}_useErr{}_minMC{}_ma
 df_vor_train = df_vor.groupby('vor_label').sum()[['s','sumw2_s','b1','sumw2_b1','b2','sumw2_b2','significance']]
 _, df_vor_train['significance'] = vfunc(df_vor_train['s'], df_vor_train['b1'], df_vor_train['b2'], err_b1, err_b2, minimum_bkg)
 file_log.write(" overtrain test: \n df_vor_train is - \n {} \n".format(df_vor_train))
+print("finish load train data")
 # create test df
 # apply the map:
 vor_data = tool.apply_vor_map(df_test,df_map)
 vor_data.to_csv("{}TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}_useErr{}_minMC{}_maxErr{}_test.csv".format(outputPath,tf,negative_weight,delta,group_events,useError,minMC,maxErr))
+print("finish load test data")
 # to_table
 test_values = ["vor_point","totalWeight","error","entries","sumw2"]
 test_index = ["vor_label","target"]
@@ -337,14 +339,14 @@ df_vor_test =  pd.DataFrame({"vor_label":test_vor_label,"s":test_s,"b1":test_b1,
 df_vor_test.set_index('vor_label',inplace=True)
 file_log.write(" overtrain test: \n df_vor_test is - \n {}\n".format(df_vor_test))
 
-print(" finish loading train and test data")
+print(" finish organizing train and test data")
 # make plots
 tool.make_compare_plot(df_vor_train, df_vor_test, ["s","b1","b2","significance"], "{}TrainFrac{}_PairNegWgt{}_Delta{}_GroupEvt{}_useErr{}_minMC{}_maxErr{}_TrainVsTest_{}".format(plotPath,tf,negative_weight,delta,group_events,useError,minMC,maxErr,date))
 
 print(" finish plot train/test comparison and prepare to plot final voronoi region ")
 
-#if doPlot and len(Vor.regions) < 1000 :
-if doPlot :
+if doPlot and len(Vor.regions) < 5000 :
+#if doPlot :
     # plot merged Voronoi diagrams with color
     print (" plot final merged Voronoi diagrams ")
     
@@ -399,8 +401,8 @@ if doPlot :
     #plt.show()
     plt.savefig("{}TrainFrac{}_ColoredVoronoi_Final_PairNegWgt{}_Delta{}_GroupEvt{}_useErr{}_minMC{}_maxErr{}_{}.png".format(plotPath,tf,negative_weight,delta,group_events,useError,minMC,maxErr,date))
     plt.close()
+    print(" finish plot final voronoi region and prepare to plot evolving history ")
 
-print(" finish plot final voronoi region and prepare to plot evolving history ")
 if doPlot: 
     # plot the evolving history
     print (" plot the evolving history ")
