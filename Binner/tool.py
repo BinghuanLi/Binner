@@ -9,6 +9,7 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 import matplotlib.pyplot as plt
 import math
 from ROOT import RooStats
+from ROOT import gROOT
 from scipy import stats
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon
@@ -172,7 +173,7 @@ def pair_negative(df):
 #load_data_2017(inputPath, variables, False)  # select all jets
 def load_data_2017(inputPath,variables,criteria, skip=1, nEvt=-1, pair_negwgt = "Sort"):
     print variables
-    my_cols_list=variables+['proces', 'key', 'target','totalWeight','sumw2','entries','error','vor_point','vor_region']
+    my_cols_list=variables+['proces', 'key', 'target','totalWeight','sumw2','entries','error','vor_point','vor_region','bin_region']
     data = pd.DataFrame(columns=my_cols_list)
     keys=['ttHnobb_SigRegion','ttWJets_SigRegion',"ttZJets_SigRegion","ttJets_SigRegion"]
     print keys
@@ -227,6 +228,7 @@ def load_data_2017(inputPath,variables,criteria, skip=1, nEvt=-1, pair_negwgt = 
                 chunk_df['target']=target
                 chunk_df['vor_region']=-1
                 chunk_df['vor_point']=-1
+                chunk_df['bin_region']=-1
                 chunk_df['error']=error
                 print(chunk_df)
                 print(data)
@@ -518,37 +520,41 @@ def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(
     
     '''
     
-    x_train = df_train.index.values
-    x_test = df_test.index.values
+    x_train = df_train['bin_label'].values
+    x_test = df_test['bin_label'].values
     x_diff = np.setdiff1d(x_train,x_test)
     x_test=np.concatenate((x_test,x_diff))
     for var in variables:
         print ( " plot comparison : var-{} ".format(var))
-        y_train = df_train[var]
-        y_test = df_test[var]
+        y_train = df_train[var].values
+        y_test = df_test[var].values
         y_train_err = np.zeros(len(x_train))
         y_test_err = np.zeros(len(x_test))
         if var == 's' or var == 'b1' or var == 'b2':
-            y_train_err = np.sqrt(df_train["sumw2_{}".format(var)])
-            y_test_err = np.sqrt(df_test["sumw2_{}".format(var)])
+            y_train_err = np.sqrt(df_train["sumw2_{}".format(var)].values)
+            y_test_err = np.sqrt(df_test["sumw2_{}".format(var)].values)
         if Norm and not var =='significance':
-            y_train = y_train/np.linalg.norm(y_train)
-            y_train_err = y_train_err/np.linalg.norm(y_train)
-            y_test = y_test/np.linalg.norm(y_test)
-            y_test_err = y_test_err/np.linalg.norm(y_test)
+            y_train = y_train/y_train.sum()
+            y_train_err = y_train_err/y_train.sum()
+            y_test = y_test/y_test.sum()
+            y_test_err = y_test_err/y_test.sum()
         y_test = np.concatenate((y_test,np.zeros(len(x_diff))))
         y_test_err = np.concatenate((y_test_err,np.zeros(len(x_diff))))
         y_ratio=[(lambda x,y: x/y if y!=0 else(1 if x==0 else 0 ) )(a,b) for a,b in zip(y_test,y_train) ]
         
-        #print ( " len x_train, y_train: {},{} ".format(len(x_train),len(y_train)))
-        #print ( " len x_test, y_test: {},{} ".format(len(x_test),len(y_test)))
-        #print ( " len y_ratio".format(len(y_ratio)))
+        print ( " len y_ratio : {}".format(len(y_ratio)))
+        print ( "y_train {}".format(y_train))
+        print ( "y_train_err {}".format(y_train_err))
+        print ( "y_test {}".format(y_test))
+        print ( "y_test_err {}".format(y_test_err))
 
 
         gs = gridspec.GridSpec(2,1, height_ratios=[4,1])
         ax1 = plt.subplot(gs[0])
         ax2 = plt.subplot(gs[1])
+        print ( " ready to plot train : var-{}".format(var))
         ax1.errorbar(x_train, y_train,yerr=y_train_err ,c='b',marker=',', ls='--', label='train')
+        print ( " ready to plot test : var-{}".format(var))
         ax1.errorbar(x_test, y_test, yerr=y_test_err, c='r',marker=',', ls='--', label='test')
         ax1.grid(True)
         if var=='significance':
@@ -559,11 +565,19 @@ def make_compare_plot(df_train, df_test, variables, figname, Norm=True, fig_sz=(
         ax1.legend()
         ax2.grid(True)
         ax2.set(ylabel=r'$\frac{test}{train}$')
+        print ( " ready to plot ratio : var-{}".format(var))
         ax2.plot(x_train,y_ratio, 'k.')
-        ax2.set(xlabel="vor_label")
+        print ( " finish plot : var-{}".format(var))
+        ax2.set_xlabel("bin_label")
+        print ( " finish set xlabel : var-{}".format(var))
         ax2.set_ylim(0,2)
-        plt.savefig("{}-var-{}.png".format(figname,var))
-        plt.clf()
+        print ( " finish set ylim : var-{}".format(var))
+        name = "{}-var-{}.png".format(figname,var)
+        plt.show()
+        #plt.savefig("s.png")
+        print ( " finish save fig : var-{}".format(var))
+        #plt.clf()
+        print ( " finish close plot : var-{}".format(var))
 
 def have_enough_stat(w,sumw2,entrie,minimum_entries,maximum_error,useErr=True):
     '''
@@ -580,3 +594,145 @@ def have_enough_stat(w,sumw2,entrie,minimum_entries,maximum_error,useErr=True):
     else:
         return (entrie > minimum_entries)
     
+def get_wtd_quantiles(X,W,N,BIN,MIN,MAX):
+    '''
+        X: array of data
+        W: array of weight
+        N: number of quantiles
+        BIN,MIN,MAX: values to initialize a ROOT histograms, BIN>>N
+        return: array of bin edges with length (N+1)
+    '''
+    h = ROOT.TH1D("h1","h1",BIN,MIN,MAX)
+    for x,w in zip(X,W):
+        h.Fill(x,w)
+    YQ=np.zeros(N-1)
+    XQ=np.linspace(0.,1.,N+1)
+    XQ=XQ[1:-1]
+    h.GetQuantiles(N,YQ,XQ)
+    YQ=np.append(YQ,[MIN,MAX])
+    YQ=np.sort(YQ)
+    return YQ
+
+def fill_2D_hist(X,Y,W,XQ,YQ):
+    '''
+    input:
+        X,Y: array of data 
+        W: array of weight
+        XQ: x bin edges
+        YQ: y bin edges
+    return: 
+        wgt: array of yield
+        sumw2: array of error
+        entries: array of entries
+        df_bin : dataFrame with bin info x(y)_low,x(y)_high
+    '''
+    H_entries, x_edges, y_edges = np.histogram2d(X, Y, bins=(XQ, YQ))
+    H_wgt, _noX, _noY   = np.histogram2d(X, Y, bins=(XQ, YQ), weights=W)
+    H_sumw2, _noX, _noY = np.histogram2d(X, Y, bins=(XQ, YQ), weights = (W**2))
+
+    wgt = H_wgt.T.flatten() 
+    sumw2 = H_sumw2.T.flatten() 
+    entries = H_entries.T.flatten() 
+    
+    X_lowedge = np.repeat(XQ[:-1],(len(YQ)-1))
+    X_highedge =  np.repeat(XQ[1:],(len(YQ)-1))
+    x_center = (X_lowedge + X_highedge) /2.
+    
+    Y_lowedge = np.tile(YQ[:-1],(len(XQ)-1))
+    Y_highedge = np.tile(YQ[1:],(len(XQ)-1))
+    y_center = (Y_lowedge + Y_highedge) /2.
+    
+    df_bin = pd.DataFrame({"x_center":x_center,"x_lowedge":X_lowedge,"x_highedge":X_highedge,"y_center":y_center,"y_lowedge":Y_lowedge,"y_highedge":Y_highedge})
+    return wgt, sumw2, entries, df_bin
+
+def map_to_2D_hist(data, XQ, YQ):
+    '''
+        convert the dataframe map to ROOT 2D histgrams
+        input : 
+            data:
+                DataFrame, contains x center,y center and bin label
+            XQ, YQ:
+                bin edges
+        output :
+            root 2D histograms
+
+    '''
+    X= data.x_center.values
+    Y= data.y_center.values
+    W= data.bin_label.values
+    h2 = ROOT.TH2D("h2","h2",len(XQ)-1,XQ,len(YQ)-1,YQ)
+    h2.Sumw2()
+    print( " convert map to 2D hist ")
+    for r in zip(X,Y,W):
+        h2.Fill(r[0],r[1],r[2])
+
+    return h2 
+
+def apply_bin_map_root(data, FileName, hName):
+    ''' 
+        apply the bin_map to data
+        input : 
+            data:
+                DataFrame, contains x,y and event weight
+            FileName:
+                string, name of root file 
+            hName:
+                string, name of 2D hist
+        output :
+            bin_data:
+                DataFrame, data with additional column bin_label
+    '''
+    # read the histogram
+    f1 = ROOT.TFile.Open(FileName,"read")
+    gROOT.cd()
+    h2 = f1.Get(hName)
+    h2.SetDirectory(0)
+    f1.Close()
+    
+    # apply the 2d histogram map
+    label=[]
+    i=0
+    for index, row in data.iterrows():
+        i=i+1
+        x = row["mvaOutput_2lss_ttV"]
+        y = row["mvaOutput_2lss_ttbar"]
+        BDTBin = h2.GetBinContent(h2.FindBin(x,y))
+        label.append(BDTBin)
+        if i%10000 ==0: print("load test event {}".format(i))
+
+    bin_data = data
+    bin_data["bin_label"] = label
+    return bin_data
+
+def apply_bin_map_csv(data, csv):
+    ''' 
+        apply the bin_map to data
+        input : 
+            data:
+                DataFrame, contains x,y and event weight
+            FileName:
+                string, name of root file 
+            hName:
+                string, name of 2D hist
+        output :
+            bin_data:
+                DataFrame, data with additional column bin_label
+    '''
+    # read the histogram
+    f1 = ROOT.TFile.Open(FileName,"read")
+    gROOT.cd()
+    h2 = f1.Get(hName)
+    h2.SetDirectory(0)
+    f1.Close()
+    
+    # apply the 2d histogram map
+    label=[]
+    for index, row in data.iterrows():
+        x = row["mvaOutput_2lss_ttV"]
+        y = row["mvaOutput_2lss_ttbar"]
+        BDTBin = h2.GetBinContent(h2.FindBin(x,y))
+        label.append(BDTBin)
+    
+    bin_data = data
+    bin_data["bin_label"] = label
+    return bin_data
